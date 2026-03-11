@@ -44,6 +44,42 @@ canvas{position:absolute;top:0;left:0}
 #ctrl-back{margin-top:44px;color:#5A7A96;cursor:pointer;letter-spacing:.1em;font-size:14px}
 #ctrl-back:hover{color:#D4E3EE}
 
+/* ── Archive ────────────────── */
+#archive{position:absolute;inset:0;background:rgba(6,12,24,0.97);z-index:18;
+  display:none;flex-direction:column;align-items:center;justify-content:flex-start;
+  padding-top:40px;font-family:'Share Tech Mono','Courier New',monospace;color:#D4E3EE;
+  overflow:hidden}
+#archive.show{display:flex}
+#archive h2{font-size:20px;letter-spacing:.30em;color:#5A7A96;margin-bottom:4px}
+#archive-count{font-size:11px;letter-spacing:.20em;color:#2A4A62;margin-bottom:22px}
+#archive-cards{display:flex;gap:24px;align-items:flex-start}
+.arc-card{width:290px;border:1px solid rgba(50,90,130,0.30);background:rgba(10,20,36,0.92);
+  border-radius:10px;overflow:hidden;display:flex;flex-direction:column;align-items:center;
+  padding-bottom:18px;transition:border-color .3s}
+.arc-card.found-key {border-color:rgba(46,191,165,0.55);box-shadow:0 0 24px rgba(46,191,165,0.08)}
+.arc-card.found-ceil{border-color:rgba(125,216,248,0.55);box-shadow:0 0 24px rgba(125,216,248,0.08)}
+.arc-card.found-void{border-color:rgba(139,92,246,0.55);box-shadow:0 0 24px rgba(139,92,246,0.08)}
+.arc-card-header{width:100%;padding:9px 15px 7px;font-size:9px;letter-spacing:.22em;
+  color:#2A3A50;border-bottom:1px solid rgba(50,90,130,0.18);text-align:left}
+.arc-card.found-key  .arc-card-header{color:rgba(46,191,165,0.65)}
+.arc-card.found-ceil .arc-card-header{color:rgba(125,216,248,0.65)}
+.arc-card.found-void .arc-card-header{color:rgba(139,92,246,0.65)}
+.arc-card canvas{margin:14px 0 8px;display:block}
+.arc-card-name{font-size:20px;letter-spacing:.24em;color:#D4E3EE;margin:2px 0 12px}
+.arc-card.unfound .arc-card-name{color:#1E2E3E}
+.arc-row{width:100%;padding:4px 16px;display:flex;justify-content:space-between;
+  font-size:10px;letter-spacing:.08em;gap:8px}
+.arc-label{color:#2A4060;white-space:nowrap}
+.arc-val{color:#5A7A96;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.arc-card.unfound .arc-val{color:#1A2838}
+.arc-flavor{width:100%;padding:10px 16px 0;font-size:10px;letter-spacing:.06em;
+  line-height:1.75;text-align:center;color:#2A4060}
+.arc-card.found-key  .arc-flavor{color:rgba(46,191,165,0.38)}
+.arc-card.found-ceil .arc-flavor{color:rgba(125,216,248,0.38)}
+.arc-card.found-void .arc-flavor{color:rgba(139,92,246,0.38)}
+#archive-back{margin-top:22px;color:#2A4060;cursor:pointer;letter-spacing:.12em;font-size:13px}
+#archive-back:hover{color:#D4E3EE}
+
 /* ── Pause ──────────────────── */
 #pause{position:absolute;inset:0;background:rgba(13,27,42,.88);z-index:20;
   display:none;flex-direction:column;align-items:center;justify-content:center;
@@ -61,6 +97,7 @@ canvas{position:absolute;top:0;left:0}
     <div id="logo">NEKO PARADOX</div>
     <div id="logo-sub">The Internet's Forgotten Cats</div>
     <div class="mi sel" data-a="start">ゲームスタート</div>
+    <div class="mi"     data-a="archive">MEME  ARCHIVE</div>
     <div class="mi"     data-a="controls">操作方法</div>
     <div id="hint">PRESS  ENTER  TO  START</div>
   </div>
@@ -83,6 +120,13 @@ canvas{position:absolute;top:0;left:0}
     <h2>// PAUSED //</h2>
     <div class="mi sel" data-p="resume">ゲームに戻る</div>
     <div class="mi"     data-p="title">タイトルへ戻る</div>
+  </div>
+
+  <div id="archive">
+    <h2>MEME  ARCHIVE</h2>
+    <div id="archive-count"></div>
+    <div id="archive-cards"></div>
+    <div id="archive-back">&lt; 戻る</div>
   </div>
 </div>
 
@@ -137,6 +181,41 @@ const PAL = {
   splitGl:'#8B5CF6', stareGl:'#7DD8F8',
 };
 const MONO = '"Share Tech Mono","Courier New",monospace';
+
+// ── MEME ARCHIVE データ ───────────────────────────────────────────────
+const MEME_CATS = [
+  { id:'key',  name:'Key',  room:'ROOM 1  廃棄データセンター', gimmick:'Quantum Split', found:false },
+  { id:'ceil', name:'Ceil', room:'ROOM 2  観測者の廊下',       gimmick:'The Stare',     found:false },
+  { id:'void', name:'Void', room:'ROOM 3  収束の間',           gimmick:'The Stare',     found:false },
+];
+
+const ARCHIVE_KEY='neko_paradox_archive';
+
+function loadFoundFlags(){
+  try{
+    const saved=sessionStorage.getItem(ARCHIVE_KEY);
+    if(!saved) return;
+    const ids=JSON.parse(saved);
+    for(const cat of MEME_CATS) cat.found=ids.includes(cat.id);
+  } catch(e){}
+}
+
+function saveFoundFlag(id){
+  try{
+    const cat=MEME_CATS.find(c=>c.id===id);
+    if(cat) cat.found=true;
+    const ids=MEME_CATS.filter(c=>c.found).map(c=>c.id);
+    sessionStorage.setItem(ARCHIVE_KEY,JSON.stringify(ids));
+  } catch(e){}
+}
+
+// buildRoomEntities 後に呼び出し: sessionStorage の found 状態をルームエンティティに反映
+function applyFoundFlags(sealedCats){
+  for(const sc of sealedCats){
+    const meta=MEME_CATS.find(c=>c.id===sc.id);
+    if(meta?.found){ sc.found=true; sc.foundTimer=0; }
+  }
+}
 
 const ROOM_META = [
   { name:'廃棄データセンター', chapter:'序章'  },
@@ -260,7 +339,7 @@ const MAPS=[buildRoom1(),buildRoom2(),buildRoom3()];
 
 // ── Room Entities ─────────────────────────────────────────────────────
 function buildRoomEntities(roomIdx){
-  const switches=[], doors=[], sealedCats=[], stareTargets=[];
+  const switches=[], doors=[], sealedCats=[];
 
   if(roomIdx===0){
     // Puzzle mechanic: player holds ← → player hits left wall → stays on Switch B.
@@ -286,17 +365,14 @@ function buildRoomEntities(roomIdx){
     switches.push({id:'A', x:18*TILE,   y:17*TILE, w:2*TILE, h:TILE, pressed:false});
     doors.push({x:20*TILE, y1:0, y2:18*TILE, w:2*TILE,
       linkedIds:['A','B'], open:false, openProgress:0});
-    // Stare: target on left face of tower (cols 34-35).
-    // Observation deck at row 9, cols 26-32.
-    // Player on deck: ey ≈ 9*32-36+10 = 262. Tower face x = 34*32 = 1088.
-    // Player x ≈ 29*32 = 928.  ex=928+12+4=944.  dx=1088-944=144, dy=288-262=26 → ~10° ✓
-    stareTargets.push({
-      id:'tower_panel',
-      cx: 34*TILE, cy: 9*TILE,
-      x: 34*TILE-10, y: 7*TILE, w: 10, h: 4*TILE,
-      revealed:false, gazeTimer:0,
+    // Stare: ターゲットは Ceil ネコ自体（tower_panel 廃止）。
+    // hidden=true → ガゼで下部から実体化 → hidden=false で接近救出可能になる。
+    // _gazeW/_gazeH はガゼ当たり判定用ヒットボックスサイズ。
+    sealedCats.push({
+      id:'ceil', x:30*TILE, y:9*TILE-48, found:false, hidden:true,
+      gazeTimer:0, isGazeTarget:true,
+      _gazeW:30, _gazeH:48,
     });
-    sealedCats.push({id:'ceil', x:30*TILE, y:9*TILE-48, found:false, hidden:true});
   }
 
   if(roomIdx===2){
@@ -312,9 +388,16 @@ function buildRoomEntities(roomIdx){
     switches.push({id:'B', x:27*TILE, y:17*TILE, w:2*TILE, h:TILE, pressed:false});
     doors.push({x:26*TILE, y1:0, y2:18*TILE, w:TILE,
       linkedIds:['A','B'], open:false, openProgress:0});
+    // シークレットキャット: 左エリア中上空（col9, row5）に浮遊
+    // row-9 高段（cols 5-12）から真上ジャンプで到達可能（dist ≈ 8px < 32px ✓）
+    // col8付近から右向き上方 stare（angleOffset ≈ -45°）でもコーン内に捕捉可能
+    sealedCats.push({
+      id:'void', x:9*TILE, y:5*TILE, found:false, hidden:true,
+      gazeTimer:0, isGazeTarget:true, _gazeW:30, _gazeH:48,
+    });
   }
 
-  return {switches,doors,sealedCats,stareTargets};
+  return {switches,doors,sealedCats};
 }
 
 // ── Particles ─────────────────────────────────────────────────────────
@@ -786,27 +869,27 @@ function inGazeCone(px,py,facing,angleOffset,aspect,tx,ty){
   return Math.abs(diff)<half;
 }
 
-function updateStareTargets(targets,px,py,facing,angleOffset,aspect,dt,sealedCats){
-  for(const tgt of targets){
-    if(tgt.revealed) continue;
-    // Sample multiple points on the target hitbox for robust detection
+// ── Gaze-reveal updater (replaces updateStareTargets) ─────────────────
+// sealedCat に isGazeTarget:true が設定されている場合、
+// プレイヤーの視線コーンと当たり判定し gazeTimer を更新する。
+// STARE_GAZE_TIME 達成で hidden=false に遷移（接近救出が可能になる）。
+function updateGazeCats(sealedCats,px,py,facing,angleOffset,aspect,dt){
+  for(const sc of sealedCats){
+    if(!sc.isGazeTarget||sc.found||!sc.hidden) continue;
+    const w=sc._gazeW||30, h=sc._gazeH||48;
     const pts=[
-      [tgt.cx, tgt.cy],                         // center
-      [tgt.x+tgt.w*0.2, tgt.y+tgt.h*0.2],      // top-left area
-      [tgt.x+tgt.w*0.8, tgt.y+tgt.h*0.2],      // top-right area
-      [tgt.x+tgt.w*0.2, tgt.y+tgt.h*0.8],      // bot-left area
-      [tgt.x+tgt.w*0.8, tgt.y+tgt.h*0.8],      // bot-right area
+      [sc.x+w*.5, sc.y+h*.5],           // center
+      [sc.x+w*.2, sc.y+h*.2],           // top-left area
+      [sc.x+w*.8, sc.y+h*.2],           // top-right area
+      [sc.x+w*.2, sc.y+h*.8],           // bot-left area
+      [sc.x+w*.8, sc.y+h*.8],           // bot-right area
     ];
     const looking=pts.some(([tx,ty])=>inGazeCone(px,py,facing,angleOffset,aspect,tx,ty));
     if(looking){
-      tgt.gazeTimer=Math.min(tgt.gazeTimer+dt,STARE_GAZE_TIME);
-      if(tgt.gazeTimer>=STARE_GAZE_TIME){
-        tgt.revealed=true;
-        triggerShake(4,.3);
-        for(const sc of sealedCats) if(sc.hidden) sc.hidden=false;
-      }
+      sc.gazeTimer=Math.min(sc.gazeTimer+dt,STARE_GAZE_TIME);
+      if(sc.gazeTimer>=STARE_GAZE_TIME){ sc.hidden=false; triggerShake(4,.3); }
     } else {
-      tgt.gazeTimer=Math.max(0,tgt.gazeTimer-dt*0.8);
+      sc.gazeTimer=Math.max(0,sc.gazeTimer-dt*.8);
     }
   }
 }
@@ -842,9 +925,8 @@ class Player {
   }
 
   update(dt,map,roomEntities){
-    const doors       = roomEntities?.doors       ?? [];
-    const stareTargets= roomEntities?.stareTargets ?? [];
-    const sealedCats  = roomEntities?.sealedCats  ?? [];
+    const doors      = roomEntities?.doors      ?? [];
+    const sealedCats = roomEntities?.sealedCats ?? [];
     const closedDoors = doors.filter(d=>!d.open);
 
     const left  =Input.anyHeld('ArrowLeft','KeyA');
@@ -918,8 +1000,8 @@ class Player {
       if(bwdHeld)
         this.stareAspect=Math.max(STARE_ASPECT_MIN,this.stareAspect-STARE_ASPECT_SPEED*dt);
 
-      updateStareTargets(stareTargets,this.x,this.y,this.facing,
-        this.stareAngleOffset,this.stareAspect,dt,sealedCats);
+      updateGazeCats(sealedCats,this.x,this.y,this.facing,
+        this.stareAngleOffset,this.stareAspect,dt);
       this.gimmick='stare';
     } else {
       if(prevCrouch!==this.crouching || !qHeld){
@@ -1091,14 +1173,16 @@ function updateSwitches(switches,player,ghost){
   for(const sw of switches){
     sw.pressed=false;
     if(aabb(player.x,player.y,PW,player.crouchH,sw.x,sw.y,sw.w,sw.h)) sw.pressed=true;
-    if(ghost&&aabb(ghost.x,ghost.y,PW,PH,sw.x,sw.y,sw.w,sw.h)) sw.pressed=true;
+    // BF-1: ghost.crouchH で判定（しゃがみ Ghost が Switch を踏めなかったバグ修正）
+    if(ghost&&aabb(ghost.x,ghost.y,PW,ghost.crouchH,sw.x,sw.y,sw.w,sw.h)) sw.pressed=true;
   }
 }
 function updateDoors(doors,switches,dt){
   for(const door of doors){
     if(door.open){ door.openProgress=Math.min(1,door.openProgress+dt*2.2); continue; }
     const allOn=door.linkedIds.every(id=>switches.find(s=>s.id===id)?.pressed);
-    if(allOn){ door.open=true; triggerShake(5,.35); }
+    // BF-2: ドア開放時刻を記録（Tutorial card の経過時間計算に使用）
+    if(allOn){ door.open=true; door._openedAt=game.time; triggerShake(5,.35); }
   }
 }
 function checkCeilRescue(sealedCats,player,roomIdx){
@@ -1110,6 +1194,7 @@ function checkCeilRescue(sealedCats,player,roomIdx){
       sc.found=true;
       sc.foundTimer=1.8;  // effect countdown
       triggerShake(6,.4);
+      saveFoundFlag(sc.id);
     }
   }
 }
@@ -1132,25 +1217,99 @@ function drawSwitchConnections(switches,doors,t){
     }
   }
 }
+// ── 猫の鈴ヘルパー ───────────────────────────────────────────────────
+// cx,cy: 鈴中心, sz: 参照サイズ(= hitbox height),
+// pressed: 踏まれているか, pulse: 0-1 の sin値, t: 時刻
+function _drawBell(c,cx,cy,sz,pressed,pulse,t){
+  const bh  = sz*0.68;    // ベル本体の高さ
+  const tW  = sz*0.30;    // 上部の半幅
+  const bW  = sz*0.46;    // 下部フレアの半幅
+  const gy  = cy-bh*0.44; // ベル本体の上端 y
+  const fY  = cy+bh*0.28; // ベル下端 y（フレア底）
+
+  const activeCol = pressed ? PAL.accentG : 'rgba(139,92,246,0.90)';
+  const bodyDark  = pressed ? 'rgba(10,40,30,0.97)' : 'rgba(12,8,32,0.97)';
+  const bodyMid   = pressed ? 'rgba(20,65,48,0.97)' : 'rgba(22,15,52,0.97)';
+
+  c.save();
+
+  // ── ベル本体 ─────────────────────────────────────────────────────
+  if(pressed){ c.shadowColor=PAL.accentG; c.shadowBlur=12+6*pulse; }
+  c.beginPath();
+  c.moveTo(cx-tW, gy);
+  c.bezierCurveTo(cx-tW, gy+bh*0.38, cx-bW, gy+bh*0.66, cx-bW, fY);
+  c.quadraticCurveTo(cx-bW, fY+3.5, cx, fY+5);
+  c.quadraticCurveTo(cx+bW, fY+3.5, cx+bW, fY);
+  c.bezierCurveTo(cx+bW, gy+bh*0.66, cx+tW, gy+bh*0.38, cx+tW, gy);
+  c.closePath();
+  const grad=c.createLinearGradient(cx-bW,0,cx+bW,0);
+  grad.addColorStop(0,bodyDark); grad.addColorStop(0.5,bodyMid); grad.addColorStop(1,bodyDark);
+  c.fillStyle=grad; c.fill();
+  c.strokeStyle=activeCol; c.lineWidth=1.5; c.stroke();
+  c.shadowBlur=0;
+
+  // ── キャップドーム（ベル上部の丸み）────────────────────────────
+  c.fillStyle=pressed?'rgba(46,191,165,0.72)':'rgba(110,85,215,0.72)';
+  c.shadowColor=activeCol; c.shadowBlur=pressed?7:3;
+  c.beginPath(); c.ellipse(cx,gy+1,tW,sz*0.092,0,Math.PI,Math.PI*2); c.fill();
+  c.shadowBlur=0;
+
+  // ── 取り付けリング（上端の輪）────────────────────────────────────
+  const ringR=sz*0.082, ringY=gy-sz*0.115;
+  c.strokeStyle=pressed?'rgba(46,191,165,0.88)':'rgba(115,95,210,0.72)';
+  c.lineWidth=1.8;
+  c.beginPath(); c.arc(cx,ringY,ringR,0,Math.PI*2); c.stroke();
+
+  // ── 底部スリット ──────────────────────────────────────────────────
+  c.fillStyle='rgba(2,2,10,0.92)';
+  c.fillRect(cx-bW*0.30, fY+1.5, bW*0.60, 2.5);
+
+  // ── クラッパー（舌）: 踏まれると大きく揺れる ─────────────────────
+  const swingAmp=pressed ? 2.8 : 0.75;
+  const clY=fY-sz*0.07+Math.sin(t*(pressed?14:4.5)+cx*0.05)*swingAmp;
+  c.shadowColor=activeCol; c.shadowBlur=pressed?11:3;
+  c.fillStyle=pressed ? PAL.accentG : 'rgba(155,125,255,0.85)';
+  c.beginPath(); c.arc(cx,clY,sz*0.092,0,Math.PI*2); c.fill();
+  c.shadowBlur=0;
+
+  c.restore();
+}
+
 function drawSwitch(sw,t){
   const {x,y,w,h,pressed,id}=sw;
-  ctx.fillStyle=pressed?'rgba(20,60,50,0.95)':'rgba(15,25,45,0.9)';
+  const pulse=0.5+0.5*Math.sin(t*3.5+sw.x*.01);
+
+  // ── パネル背景 ────────────────────────────────────────────────────
+  ctx.fillStyle=pressed?'rgba(20,60,50,0.95)':'rgba(15,25,45,0.90)';
   ctx.fillRect(x,y,w,h);
-  ctx.fillStyle=pressed?'rgba(46,191,165,0.12)':'rgba(139,92,246,0.08)';
-  ctx.fillRect(x+3,y+3,w-6,h-6);
-  ctx.shadowColor=pressed?PAL.accentG:PAL.splitGl; ctx.shadowBlur=pressed?18:6;
-  ctx.strokeStyle=pressed?PAL.accentG:'rgba(139,92,246,0.55)'; ctx.lineWidth=2;
-  ctx.strokeRect(x+1,y+1,w-2,h-2); ctx.shadowBlur=0;
-  const cx_=x+w/2, cy_=y+h/2;
-  ctx.shadowColor=pressed?PAL.accentG:PAL.splitGl; ctx.shadowBlur=pressed?14:5;
-  ctx.fillStyle=pressed?PAL.accentG:'rgba(139,92,246,0.8)';
-  ctx.beginPath(); ctx.arc(cx_,cy_,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-  ctx.font=`bold 11px ${MONO}`; ctx.fillStyle=pressed?'#CCFFE8':'rgba(180,160,230,0.9)';
-  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(id,cx_,cy_); ctx.textAlign='left';
+  ctx.fillStyle=pressed?'rgba(46,191,165,0.07)':'rgba(139,92,246,0.06)';
+  ctx.fillRect(x+2,y+2,w-4,h-4);
+
+  // ── 鈴を1個 or 2個（幅3TILE以上は2個）───────────────────────────
+  const bellCount=w>=3*TILE?2:1;
+  const bxList=bellCount===1?[x+w/2]:[x+w/3, x+2*w/3];
+  for(const bx of bxList) _drawBell(ctx,bx,y+h/2,h,pressed,pulse,t);
+
+  // ── 外枠グロー ────────────────────────────────────────────────────
+  ctx.shadowColor=pressed?PAL.accentG:PAL.splitGl;
+  ctx.shadowBlur=pressed?14:5;
+  ctx.strokeStyle=pressed?PAL.accentG:'rgba(139,92,246,0.50)';
+  ctx.lineWidth=1.5; ctx.strokeRect(x+1,y+1,w-2,h-2);
+  ctx.shadowBlur=0;
+
+  // ── ID ラベル（右下隅）──────────────────────────────────────────
+  ctx.font=`bold 9px ${MONO}`;
+  ctx.fillStyle=pressed?'rgba(180,255,220,0.80)':'rgba(160,140,220,0.60)';
+  ctx.textAlign='right'; ctx.textBaseline='bottom';
+  ctx.fillText(id,x+w-4,y+h-2); ctx.textAlign='left';
+
+  // ── プレス時リップル ──────────────────────────────────────────────
   if(pressed){
-    const ripple=(t*.8)%1;
-    ctx.save(); ctx.globalAlpha=.3*(1-ripple); ctx.strokeStyle=PAL.accentG; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.arc(cx_,cy_,6+ripple*12,0,Math.PI*2); ctx.stroke(); ctx.restore();
+    const ripple=(t*0.8)%1;
+    ctx.save(); ctx.globalAlpha=0.3*(1-ripple);
+    ctx.strokeStyle=PAL.accentG; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(x+w/2,y+h/2,8+ripple*14,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
   }
 }
 function drawDoor(door,t){
@@ -1175,37 +1334,6 @@ function drawDoor(door,t){
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText('×2',x+dw/2,mid); ctx.textAlign='left';
   }
-}
-
-// ── Stare target panel renderer ───────────────────────────────────────
-function drawStareTarget(tgt,t){
-  if(tgt.revealed) return;
-  const {cx,cy,gazeTimer}=tgt;
-  const fill=gazeTimer/STARE_GAZE_TIME;
-  const pulse=.5+.5*Math.sin(t*2.5);
-
-  // Panel visual on tower face
-  ctx.save();
-  // Backing
-  ctx.fillStyle=`rgba(8,14,30,0.9)`;
-  ctx.fillRect(cx-10,cy-24,10,48);
-  // Glow border
-  ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=fill>0?10+fill*14:4*pulse;
-  ctx.strokeStyle=`rgba(125,216,248,${.3+.4*pulse+fill*.3})`; ctx.lineWidth=2;
-  ctx.strokeRect(cx-9,cy-23,8,46);
-  // Fill meter
-  if(fill>0){
-    const mh=44*fill;
-    ctx.fillStyle=`rgba(125,216,248,${.3+.4*fill})`;
-    ctx.fillRect(cx-7,cy+22-mh,5,mh);
-  }
-  // Eye icon
-  ctx.shadowBlur=0;
-  ctx.fillStyle=`rgba(125,216,248,${.35+.3*pulse})`;
-  ctx.beginPath(); ctx.ellipse(cx-5,cy,5,3,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=`rgba(10,15,30,0.9)`;
-  ctx.beginPath(); ctx.ellipse(cx-5,cy,2,2,0,0,Math.PI*2); ctx.fill();
-  ctx.restore();
 }
 
 // ── Ray cast helper (used by gaze cone) ──────────────────────────────
@@ -1301,6 +1429,191 @@ function drawGazeCone(player,t,map){
   ctx.restore();
 }
 
+// ── MEME ARCHIVE レンダリング ─────────────────────────────────────────
+let _arcCanvases=[];  // [{canvas, id}]
+
+function drawArchiveCat(c,id,found,t){
+  const CW=200,CH=142;
+  c.clearRect(0,0,CW,CH);
+  if(!found){
+    // 未発見: 暗いシルエット
+    c.fillStyle='rgba(14,22,36,0.75)'; c.fillRect(0,0,CW,CH);
+    c.fillStyle='rgba(24,36,55,0.95)';
+    c.beginPath(); c.ellipse(96,89,31,41,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(104,52,27,25,.12,0,Math.PI*2); c.fill();
+    c.beginPath(); c.moveTo(88,37); c.lineTo(76,19); c.lineTo(100,31); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(116,37); c.lineTo(130,19); c.lineTo(116,31); c.closePath(); c.fill();
+    c.fillStyle='rgba(35,52,72,0.90)';
+    c.font=`bold 17px ${MONO}`; c.textAlign='center'; c.textBaseline='middle';
+    c.fillText('? ? ?',100,71);
+    return;
+  }
+  const col=id==='key'?'#2EBFA5':id==='ceil'?'#7DD8F8':'#8B5CF6';
+  const bob=Math.sin(t*2.2)*1.8;
+  const tailPhase=t*2.4;
+  // BG radial glow
+  const bg=c.createRadialGradient(100,82,5,100,82,88);
+  bg.addColorStop(0,id==='key'?'rgba(46,191,165,0.11)':id==='ceil'?'rgba(125,216,248,0.11)':'rgba(139,92,246,0.11)');
+  bg.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=bg; c.fillRect(0,0,CW,CH);
+  // Tail
+  const tw=Math.sin(tailPhase)*8, th=Math.cos(tailPhase*.7)*6;
+  c.strokeStyle='#0E0E18'; c.lineWidth=5; c.lineCap='round';
+  c.beginPath();
+  c.moveTo(67,98+bob);
+  c.quadraticCurveTo(49+tw,77+th,54+tw*.7,61+th*.5); c.stroke();
+  // Body + head with glow
+  c.shadowColor=col; c.shadowBlur=18;
+  c.fillStyle='#0E0E18';
+  c.beginPath(); c.ellipse(96,88+bob,31,41,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(104,52+bob,27,25,.12,0,Math.PI*2); c.fill();
+  // Ears
+  c.beginPath(); c.moveTo(88,37+bob); c.lineTo(76,19+bob); c.lineTo(100,31+bob); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(116,37+bob); c.lineTo(130,19+bob); c.lineTo(116,31+bob); c.closePath(); c.fill();
+  c.shadowBlur=0;
+  // Inner ear
+  c.fillStyle='rgba(100,50,60,0.5)';
+  c.beginPath(); c.moveTo(89,37+bob); c.lineTo(79,22+bob); c.lineTo(99,32+bob); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(115,37+bob); c.lineTo(127,22+bob); c.lineTo(115,32+bob); c.closePath(); c.fill();
+  // Eyes
+  const ey=50+bob;
+  const lC=id==='key'?'#E8C040':id==='ceil'?'#9FECFF':'#C0A8FF';
+  const rC=id==='key'?'#A8C0D8':id==='ceil'?'#9FECFF':'#C0A8FF';
+  c.shadowColor=col; c.shadowBlur=10;
+  c.fillStyle=lC; c.beginPath(); c.ellipse(97,ey,4.5,3.8,0,0,Math.PI*2); c.fill();
+  c.fillStyle=rC; c.beginPath(); c.ellipse(111,ey,4.5,3.8,0,0,Math.PI*2); c.fill();
+  c.shadowBlur=0;
+  c.fillStyle='#0A0812';
+  c.beginPath(); c.ellipse(97,ey,1.8,2.8,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(111,ey,1.8,2.8,0,0,Math.PI*2); c.fill();
+  c.fillStyle='rgba(255,255,255,0.9)';
+  c.beginPath(); c.arc(98.3,ey-1.2,1.1,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(112.3,ey-1.2,1.1,0,Math.PI*2); c.fill();
+  // Nose
+  c.fillStyle='rgba(180,100,110,0.7)';
+  c.beginPath(); c.ellipse(104,ey+4,2.2,1.6,0,0,Math.PI*2); c.fill();
+  // Outline glow pulse
+  c.shadowColor=col; c.shadowBlur=8;
+  c.strokeStyle=col; c.lineWidth=1.2;
+  c.globalAlpha=0.30+0.14*Math.sin(t*2.5);
+  c.beginPath(); c.ellipse(96,88+bob,31,41,0,0,Math.PI*2); c.stroke();
+  c.globalAlpha=1; c.shadowBlur=0;
+}
+
+function buildArchiveCards(){
+  const container=document.getElementById('archive-cards');
+  container.innerHTML=''; _arcCanvases=[];
+  const foundCount=MEME_CATS.filter(c=>c.found).length;
+  document.getElementById('archive-count').textContent=
+    `RESCUED  ${foundCount} / ${MEME_CATS.length}`;
+
+  MEME_CATS.forEach((cat,idx)=>{
+    const card=document.createElement('div');
+    card.className='arc-card'+(cat.found?` found-${cat.id}`:' unfound');
+
+    // ヘッダー
+    const hdr=document.createElement('div');
+    hdr.className='arc-card-header';
+    hdr.textContent=cat.found?`MC-${String(idx+1).padStart(2,'0')}  //  ${cat.id.toUpperCase()}`:'// SEALED //';
+    card.appendChild(hdr);
+
+    // ネコイラスト用 canvas
+    const cvs=document.createElement('canvas');
+    cvs.width=200; cvs.height=142;
+    card.appendChild(cvs);
+    _arcCanvases.push({canvas:cvs,id:cat.id,found:cat.found});
+
+    // 名前
+    const nm=document.createElement('div');
+    nm.className='arc-card-name';
+    nm.textContent=cat.found?cat.name:'???';
+    card.appendChild(nm);
+
+    // 情報行
+    const rowData=cat.found?[
+      ['発見場所', cat.room],
+      ['解放ギミック', cat.gimmick],
+      ['フレーバー', 'TBD'],
+    ]:[
+      ['発見場所','---'],['解放ギミック','---'],['フレーバー','---'],
+    ];
+    for(const [k,v] of rowData){
+      const row=document.createElement('div');
+      row.className='arc-row';
+      row.innerHTML=`<span class="arc-label">${k}</span><span class="arc-val">${v}</span>`;
+      card.appendChild(row);
+    }
+
+    // フレーバーテキスト（発見済みのみ）
+    if(cat.found){
+      const fl=document.createElement('div');
+      fl.className='arc-flavor'; fl.textContent='[ TBD ]';
+      card.appendChild(fl);
+    }
+
+    container.appendChild(card);
+  });
+}
+
+function renderArchiveAnim(t){
+  for(const {canvas,id,found} of _arcCanvases){
+    drawArchiveCat(canvas.getContext('2d'),id,found,t);
+  }
+}
+
+// ── Glitch hint: 隠しガゼキャット近傍でデジタルノイズを発生させる ─────
+// hidden=true かつ gazeTimer=0 の isGazeTarget ネコの近傍で、距離に応じた
+// クロマティックアベレーション・静電気ノイズ・ゴーストアウトラインを描画。
+// gazeTimer > 0（凝視中）になった瞬間にグリッチを止め、実体化アニメへ移行。
+function drawGlitchHints(sealedCats,player,t){
+  const GLITCH_RANGE=350;
+  for(const sc of sealedCats){
+    if(!sc.isGazeTarget||sc.found||!sc.hidden||sc.gazeTimer>0) continue;
+    const catCx=sc.x+(sc._gazeW??30)*0.5;
+    const catCy=sc.y+(sc._gazeH??48)*0.5;
+    const pdx=(player.x+PW*0.5)-catCx, pdy=(player.y+PH*0.5)-catCy;
+    const dist=Math.sqrt(pdx*pdx+pdy*pdy);
+    if(dist>=GLITCH_RANGE) continue;
+    const intensity=1-dist/GLITCH_RANGE;  // 0(far)→1(close)
+
+    // 10Hz スロットで決定論的バースト（近いほど頻繁に点灯）
+    const slot=Math.floor(t*10);
+    const h=(Math.sin(slot*397.3+sc.x*0.017)*0.5+0.5);
+    if(h>0.58-intensity*0.42) continue;
+
+    ctx.save();
+    const ax=sc.x-8, ay=sc.y-12, aw=46, ah=54;
+
+    // クロマティックアベレーション strips
+    const numStrips=2+Math.floor(intensity*4);
+    for(let i=0;i<numStrips;i++){
+      const sh=(Math.sin(slot*53.1+i*37.7+sc.y*0.03)*0.5+0.5);
+      const sy=ay+sh*ah;
+      const sth=2+Math.floor((Math.sin(slot*19+i*11)*0.5+0.5)*4);
+      const offX=Math.sin(slot*71.3+i*19.1)*12*intensity;
+      ctx.globalAlpha=0.10+intensity*0.22;
+      ctx.fillStyle='rgba(255,40,60,1)';  ctx.fillRect(ax+offX-2,sy,aw,sth);
+      ctx.fillStyle='rgba(40,210,255,1)'; ctx.fillRect(ax-offX+2,sy,aw,sth);
+    }
+    // 静電気ドットノイズ
+    const dotCount=Math.floor(intensity*16);
+    for(let i=0;i<dotCount;i++){
+      const nx=ax+((Math.sin(slot*43.7+i*127.1)*0.5+0.5)*aw);
+      const ny=ay+((Math.sin(slot*73.1+i*97.3 )*0.5+0.5)*ah);
+      ctx.globalAlpha=0.30+intensity*0.45;
+      ctx.fillStyle=i%3===0?'#FFFFFF':PAL.stareGl;
+      ctx.fillRect(nx,ny,2,2);
+    }
+    // ゴーストアウトライン（ネコ輪郭をうっすら示唆）
+    ctx.globalAlpha=0.05+intensity*0.18;
+    ctx.strokeStyle=PAL.stareGl; ctx.lineWidth=1; ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.ellipse(sc.x+12,sc.y+22,11,14,0,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(sc.x+15,sc.y+6, 10, 9,.1,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+}
+
 // ── Sealed cat / Ceil renderer ────────────────────────────────────────
 function drawSealedCat(sc,t){
   // ── Found effect (plays for 1.8s then fades) ──────────────────────
@@ -1347,8 +1660,63 @@ function drawSealedCat(sc,t){
     ctx.shadowBlur=0; ctx.restore();
     return;
   }
-  if(sc.hidden) return;
 
+  // ── Hidden: gazeTimer 進行に応じた下部からの実体化描画 ────────────
+  // isGazeTarget=true の隠しネコのみ対象。ガゼなし(gazeTimer=0)は完全不可視。
+  if(sc.hidden){
+    if(!sc.isGazeTarget||sc.gazeTimer<=0) return;
+    const ratio=sc.gazeTimer/STARE_GAZE_TIME;  // 0→1
+    const {x,y}=sc;
+    // ネコビジュアルの垂直範囲: 耳先 y-11 ～ 体下端 y+36 = 47px
+    const CAT_TOP=y-11, CAT_BOT=y+36, CAT_H=47;
+    // 下から ratio 分だけ開示: clipTop = CAT_BOT - CAT_H*ratio
+    const clipTop=CAT_BOT-CAT_H*ratio;
+
+    ctx.save();
+    // 実体化済み領域へのクリッピング（下から上へ拡大）
+    ctx.beginPath();
+    ctx.rect(x-15, clipTop, 55, CAT_BOT-clipTop+2);
+    ctx.clip();
+
+    // ネコ本体（stareGl 色寄りで描画）
+    ctx.globalAlpha=0.35+ratio*0.45;
+    ctx.fillStyle='#243A48';
+    ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=8+ratio*10;
+    ctx.beginPath(); ctx.ellipse(x+12,y+22,11,14,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x+15,y+6, 10, 9,.1,0,Math.PI*2); ctx.fill();
+    // 耳
+    ctx.beginPath();
+    ctx.moveTo(x+8,y-2);ctx.lineTo(x+4,y-11);ctx.lineTo(x+12,y-3);ctx.closePath();ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x+18,y-2);ctx.lineTo(x+23,y-11);ctx.lineTo(x+18,y-3);ctx.closePath();ctx.fill();
+    ctx.shadowBlur=0;
+    // アウトライン
+    ctx.strokeStyle=`rgba(125,216,248,${0.35+ratio*0.45})`; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(x+12,y+22,11,14,0,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x+15,y+6, 10, 9,.1,0,Math.PI*2); ctx.stroke();
+    // 「!」ラベル（ratio が高い時だけ表示）
+    if(ratio>0.55){
+      const la=(ratio-0.55)/0.45;
+      ctx.globalAlpha=la*0.8;
+      ctx.fillStyle='rgba(125,216,248,0.9)';
+      ctx.font=`bold 13px ${MONO}`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=8;
+      ctx.fillText('!',x+15,y+6); ctx.shadowBlur=0; ctx.textAlign='left';
+    }
+
+    // 実体化フロントのシマー（clipTop 付近に横方向グラデ）
+    ctx.globalAlpha=ratio*0.85;
+    const shimGrad=ctx.createLinearGradient(0,clipTop,0,clipTop+12);
+    shimGrad.addColorStop(0,`rgba(125,216,248,${0.7+ratio*0.25})`);
+    shimGrad.addColorStop(1,'rgba(125,216,248,0)');
+    ctx.fillStyle=shimGrad;
+    ctx.fillRect(x-10,clipTop,50,12);
+
+    ctx.restore();
+    return;
+  }
+
+  // ── 可視（未発見）: 通常の脈動ビーコン＋ネコシルエット ──────────
   const {x,y}=sc;
   const isCeil=sc.id==='ceil';
   const pulse=isCeil?(.7+.08*Math.sin(t*1.2)):(.45+.1*Math.sin(t*.9));
@@ -1469,22 +1837,7 @@ function drawHUD(roomIdx,player,t){
     }
   }
 
-  // ── Stare meter (Room 2, target active) ─────────────────────────
-  if(roomIdx===1){
-    const tgts=game.roomEntities.stareTargets??[];
-    const active=tgts.find(tg=>!tg.revealed&&tg.gazeTimer>0);
-    if(active){
-      const fill=active.gazeTimer/STARE_GAZE_TIME;
-      const bx=W/2-60, by=H-42;
-      ctx.font=`10px ${MONO}`; ctx.textBaseline='middle'; ctx.fillStyle='rgba(80,180,220,0.6)';
-      ctx.fillText('GAZE',bx-42,by);
-      ctx.fillStyle='rgba(10,20,35,0.8)'; ctx.fillRect(bx,by-8,120,16);
-      ctx.strokeStyle='rgba(125,216,248,0.4)'; ctx.lineWidth=1; ctx.strokeRect(bx,by-8,120,16);
-      ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=8;
-      ctx.fillStyle=PAL.stareGl; ctx.fillRect(bx+1,by-7,118*fill,14);
-      ctx.shadowBlur=0;
-    }
-  }
+  // Room 2: ガゼゲージ HUD は廃止。ネコ実体の下部からの実体化が視覚フィードバック。
 
   // ── Gimmick pill (crouch) ───────────────────────────────────────
   if(player.crouching){
@@ -1527,7 +1880,7 @@ function drawHUD(roomIdx,player,t){
     const a=Math.min(1,(14-game.time)*.2)*.55;
     ctx.font=`12px ${MONO}`; ctx.textBaseline='bottom';
     ctx.fillStyle=`rgba(90,180,210,${a})`;
-    ctx.fillText('[Q ホールド] The Stare  ─  地上で壁パネルを凝視する',W/2-210,H-18);
+    ctx.fillText('[Q ホールド] The Stare  ─  地上で浮かぶ影を凝視する',W/2-210,H-18);
   }
 }
 
@@ -1559,12 +1912,14 @@ function drawTutorialCard(player,t){
     // Show stare hint once door is opened
     const doorOpen=game.roomEntities.doors[0]?.openProgress>=1;
     if(doorOpen&&!player.hasUsedStare){
-      const stareAge=game.time-(game.roomEntities.doors[0]._openedAt||game.time);
-      let a=Math.min(1,(age-0.5)*.8);
+      // BF-3: _openedAt 起点の経過時間で alpha 計算（game.time ベースの誤計算を修正）
+      const openedAt=game.roomEntities.doors[0]._openedAt??game.time;
+      const stareAge=game.time-openedAt;
+      let a=Math.min(1,stareAge*.8);
       if(a>0){
         ctx.save(); ctx.globalAlpha=a;
         _drawCard(ctx,290,145,415,170,'rgba(125,216,248,0.55)','rgba(80,180,220,0.12)','THE STARE  ボーナス',
-          ['階段を上って観測デッキへ','[Q] ホールドで発動（地上・ゴーストなし）','[↑↓][←→] コーンを調整して塔を凝視'],t,'rgba(60,120,160,0.5)','rgba(160,235,255,1)');
+          ['階段を上って観測デッキへ','[Q] ホールドで発動（地上・ゴーストなし）','[↑↓][←→] コーンを調整して浮かぶ影を凝視'],t,'rgba(60,120,160,0.5)','rgba(160,235,255,1)');
         ctx.restore();
       }
     }
@@ -1636,12 +1991,14 @@ function drawGoal(){
 const game = {
   state:'title', roomIdx:0, time:0,
   player:null,
-  roomEntities:{switches:[],doors:[],sealedCats:[],stareTargets:[]},
+  roomEntities:{switches:[],doors:[],sealedCats:[]},
 
   start(){
     this.roomIdx=0;
     this.player=new Player(6*TILE, 14*TILE);
     this.roomEntities=buildRoomEntities(0);
+    loadFoundFlags();
+    applyFoundFlags(this.roomEntities.sealedCats);
     goalPop=false; goalTimer=0; fadeAlpha=0; fadingOut=false; fadingIn=false;
     shakeTimer=0; shakeAmp=0; this.time=0; this.state='playing';
     document.getElementById('title').classList.add('gone'); hidePause();
@@ -1661,6 +2018,7 @@ const game = {
       this.player.crouching=false; this.player.crouchH=PH; this.player.crouchSY=1.0;
       this.player.stareAngleOffset=0; this.player.stareAspect=1.0;
       this.roomEntities=buildRoomEntities(next);
+      applyFoundFlags(this.roomEntities.sealedCats);
     });
     setTimeout(()=>{ this.state='playing'; },600);
   },
@@ -1680,7 +2038,7 @@ const game = {
     if(this.state==='playing'){
       this.time+=dt;
       const p=this.player, map=MAPS[this.roomIdx];
-      const {switches,doors,sealedCats,stareTargets}=this.roomEntities;
+      const {switches,doors,sealedCats}=this.roomEntities;
 
       p.update(dt,map,this.roomEntities);
       updateSwitches(switches,p,p.ghost);
@@ -1705,13 +2063,14 @@ const game = {
       if(this.roomIdx>0) drawDoorArch('left',t);
       if(this.roomIdx<2) drawDoorArch('right',t);
 
-      const {switches,doors,sealedCats,stareTargets}=this.roomEntities;
+      const {switches,doors,sealedCats}=this.roomEntities;
       drawSwitchConnections(switches,doors,t);
       for(const d of doors)       drawDoor(d,t);
       for(const s of switches)    drawSwitch(s,t);
-      for(const tg of stareTargets) drawStareTarget(tg,t);
+      // stareTargets / drawStareTarget 廃止: ネコ実体が gaze ターゲット兼ゲージ
       drawGazeCone(this.player,t,MAPS[this.roomIdx]);
       for(const sc of sealedCats) drawSealedCat(sc,t);
+      drawGlitchHints(sealedCats,this.player,t);
 
       if(this.player) this.player.draw(ctx,t);
       ctx.restore();
@@ -1728,9 +2087,17 @@ const game = {
   const el=document.getElementById('title');
   const items=[...el.querySelectorAll('.mi')]; let sel=0;
   const upd=()=>items.forEach((e,i)=>e.classList.toggle('sel',i===sel));
+  const archEl=document.getElementById('archive');
+  const openArchive=()=>{
+    loadFoundFlags();
+    buildArchiveCards();
+    archEl.classList.add('show');
+  };
+  const closeArchive=()=>{ archEl.classList.remove('show'); };
   const act=()=>{
     const a=items[sel].dataset.a;
-    if(a==='start') game.start();
+    if(a==='start')   game.start();
+    else if(a==='archive')  openArchive();
     else if(a==='controls') document.getElementById('ctrl-overlay').classList.add('show');
   };
   items.forEach((e,i)=>{
@@ -1739,7 +2106,13 @@ const game = {
   });
   document.getElementById('ctrl-back').addEventListener('click',()=>
     document.getElementById('ctrl-overlay').classList.remove('show'));
+  document.getElementById('archive-back').addEventListener('click',closeArchive);
   window.addEventListener('keydown',e=>{
+    // アーカイブ画面中
+    if(archEl.classList.contains('show')){
+      if(e.code==='Escape'||e.code==='Backspace') closeArchive();
+      return;
+    }
     if(game.state!=='title') return;
     if(e.code==='ArrowDown'||e.code==='KeyS'){sel=(sel+1)%items.length;upd();}
     if(e.code==='ArrowUp'  ||e.code==='KeyW'){sel=(sel-1+items.length)%items.length;upd();}
@@ -1797,11 +2170,14 @@ function drawKotoSil(c,x,y,t){
 
 // ── Main loop ─────────────────────────────────────────────────────────
 let lastTime=0;
+loadFoundFlags();   // セッション開始時に既存フラグを復元
 function loop(ts){
   const dt=Math.min((ts-lastTime)/1000,.05); lastTime=ts; const t=ts/1000;
   updateParts(dt);
   if(game.state==='title'){ renderTitleBG(t); ctx.clearRect(0,0,W,H); }
   else { game.update(dt); game.render(t); }
+  // アーカイブ画面が開いていれば毎フレームネコアニメを更新
+  if(document.getElementById('archive').classList.contains('show')) renderArchiveAnim(t);
   Input.flush(); requestAnimationFrame(loop);
 }
 
