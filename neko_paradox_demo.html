@@ -1,0 +1,1817 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEKO PARADOX</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;background:#000;display:flex;align-items:center;
+  justify-content:center;overflow:hidden;user-select:none}
+#wrap{position:relative;width:1280px;height:720px;overflow:hidden}
+canvas{position:absolute;top:0;left:0}
+
+/* ── Title ─────────────────── */
+#title{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  font-family:'Share Tech Mono','Courier New',monospace;color:#D4E3EE;
+  z-index:10;transition:opacity .5s}
+#title.gone{opacity:0;pointer-events:none}
+#logo{font-size:72px;letter-spacing:.22em;color:#D4E3EE;
+  text-shadow:0 0 40px rgba(46,191,165,.5),0 0 100px rgba(46,191,165,.15);
+  margin-bottom:8px;text-align:center}
+#logo-sub{font-size:14px;letter-spacing:.25em;color:#3A6A7A;margin-bottom:70px}
+.mi{font-size:18px;letter-spacing:.1em;color:#8BA7BF;margin:7px 0;cursor:pointer;
+  padding:5px 24px;transition:color .18s;position:relative}
+.mi::before{content:'▶  ';color:#2EBFA5;opacity:0;transition:opacity .18s;
+  position:absolute;left:0}
+.mi:hover,.mi.sel{color:#D4E3EE}
+.mi:hover::before,.mi.sel::before{opacity:1}
+#hint{position:absolute;bottom:28px;font-size:12px;letter-spacing:.15em;color:#243848;
+  animation:blk 2.2s ease-in-out infinite}
+@keyframes blk{0%,100%{opacity:.25}50%{opacity:.8}}
+
+/* ── Controls ───────────────── */
+#ctrl-overlay{position:absolute;inset:0;background:rgba(13,27,42,.93);z-index:15;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'Share Tech Mono','Courier New',monospace;color:#D4E3EE}
+#ctrl-overlay.show{display:flex}
+#ctrl-overlay h2{font-size:26px;letter-spacing:.2em;color:#8BA7BF;margin-bottom:36px}
+.ctrl-row{display:flex;gap:40px;margin:6px 0;font-size:14px;letter-spacing:.08em}
+.ctrl-key{color:#2EBFA5;width:200px;text-align:right}
+.ctrl-val{color:#8BA7BF}
+#ctrl-back{margin-top:44px;color:#5A7A96;cursor:pointer;letter-spacing:.1em;font-size:14px}
+#ctrl-back:hover{color:#D4E3EE}
+
+/* ── Pause ──────────────────── */
+#pause{position:absolute;inset:0;background:rgba(13,27,42,.88);z-index:20;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'Share Tech Mono','Courier New',monospace;color:#D4E3EE}
+#pause.show{display:flex}
+#pause h2{font-size:32px;letter-spacing:.22em;color:#5A7A96;margin-bottom:44px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="bg"   width="1280" height="720"></canvas>
+  <canvas id="game" width="1280" height="720"></canvas>
+
+  <div id="title">
+    <div id="logo">NEKO PARADOX</div>
+    <div id="logo-sub">The Internet's Forgotten Cats</div>
+    <div class="mi sel" data-a="start">ゲームスタート</div>
+    <div class="mi"     data-a="controls">操作方法</div>
+    <div id="hint">PRESS  ENTER  TO  START</div>
+  </div>
+
+  <div id="ctrl-overlay">
+    <h2>操作方法</h2>
+    <div class="ctrl-row"><span class="ctrl-key">移動</span>          <span class="ctrl-val">← →  /  A D</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">ジャンプ</span>      <span class="ctrl-val">Space  /  Z  /  ↑</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">壁ジャンプ</span>    <span class="ctrl-val">壁に触れて Space（1回まで）</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">屈み</span>          <span class="ctrl-val">↓  （地上でホールド）</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">Quantum Split</span>  <span class="ctrl-val">E  （発動 / 収束）</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">The Stare</span>      <span class="ctrl-val">Q  （地上でホールド）</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">　コーン角度</span>  <span class="ctrl-val">Q中 ↑ ↓</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">　コーン形状</span>  <span class="ctrl-val">Q中 ← → （面積一定）</span></div>
+    <div class="ctrl-row"><span class="ctrl-key">ポーズ</span>         <span class="ctrl-val">Escape</span></div>
+    <div id="ctrl-back">&lt; 戻る</div>
+  </div>
+
+  <div id="pause">
+    <h2>// PAUSED //</h2>
+    <div class="mi sel" data-p="resume">ゲームに戻る</div>
+    <div class="mi"     data-p="title">タイトルへ戻る</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ════════════════════════════════════════════════════════════════════
+//   NEKO PARADOX  ·  Demo Build  ·  Ph 1-4
+//   プレイヤー物理 / 壁ジャンプ / Quantum Split / The Stare
+// ════════════════════════════════════════════════════════════════════
+
+// ── Canvas ───────────────────────────────────────────────────────────
+const bgCanvas   = document.getElementById('bg');
+const gameCanvas = document.getElementById('game');
+const bgCtx      = bgCanvas.getContext('2d');
+const ctx        = gameCanvas.getContext('2d');
+const W=1280, H=720, TILE=32;
+
+// ── Constants ─────────────────────────────────────────────────────────
+const GRAVITY          = 1200;
+const MAX_FALL         = 600;
+const P_SPEED          = 210;
+const JUMP_VY          = -490;
+const JUMP_CUT         = 0.45;
+const COYOTE_T         = 0.10;
+const JBUF_T           = 0.12;
+const PW=24, PH=36, PH_CROUCH=18;
+// Wall jump
+const WALLJUMP_VX      = 290;   // horizontal kick away from wall
+const WALLJUMP_VY      = -450;
+const WALLSLIDE_CAP    = 85;    // max fall speed while sliding
+const WALLJUMP_LOCK    = 0.18;  // seconds input override after wall jump
+// The Stare
+const STARE_HALF       = 35 * Math.PI / 180;  // base half-angle (35°)
+const STARE_RANGE      = 300;                  // base range (px)
+const STARE_GAZE_TIME  = 1.0;   // seconds to trigger reveal
+const STARE_ANGLE_SPEED= 1.6;   // rad/s for ↑↓ angle offset
+const STARE_ASPECT_SPEED= 2.5;  // /s for ←→ aspect change (linear)
+const STARE_ASPECT_MIN = 0.4;   // widest (halfAngle×2.5, range×0.63)
+const STARE_ASPECT_MAX = 4.0;   // narrowest (halfAngle÷2, range×2)
+// Crouch
+const CROUCH_SPEED_MUL = 0.5;   // speed multiplier while crouching
+// Platform snap: allow bottom X% of player to overlap PLAT before landing
+const PLAT_SNAP_MARGIN = 0.40;  // 40 % of player height can be below PLAT top
+
+const T = { AIR:0, SOLID:1, PLAT:2, GOAL:6 };
+
+const PAL = {
+  bgDeep:'#0D1B2A', accentG:'#2EBFA5', accentA:'#C97B2E',
+  koto:'#0E0E18', txt:'#D4E3EE', muted:'#5A7A96',
+  tileBod:'#1A3050', tileTop:'#3A6A90',
+  platGlw:'#2EBFA5', goalGlw:'#C97B2E',
+  splitGl:'#8B5CF6', stareGl:'#7DD8F8',
+};
+const MONO = '"Share Tech Mono","Courier New",monospace';
+
+const ROOM_META = [
+  { name:'廃棄データセンター', chapter:'序章'  },
+  { name:'観測者の廊下',       chapter:'第1章' },
+  { name:'収束の間',           chapter:'第3章' },
+];
+
+// ── Input ─────────────────────────────────────────────────────────────
+const Input = (() => {
+  const held=new Set(), pressed=new Set(), released=new Set();
+  window.addEventListener('keydown', e => {
+    if(!held.has(e.code)) pressed.add(e.code);
+    held.add(e.code);
+    if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))
+      e.preventDefault();
+  });
+  window.addEventListener('keyup', e => { held.delete(e.code); released.add(e.code); });
+  return {
+    held:       k => held.has(k),
+    pressed:    k => pressed.has(k),
+    anyHeld:    (...ks) => ks.some(k=>held.has(k)),
+    anyPressed: (...ks) => ks.some(k=>pressed.has(k)),
+    anyReleased:(...ks) => ks.some(k=>released.has(k)),
+    flush: () => { pressed.clear(); released.clear(); },
+  };
+})();
+
+// ── Tile utilities ────────────────────────────────────────────────────
+function makeMap(w,h){ return Array.from({length:h},()=>new Array(w).fill(T.AIR)); }
+function setTile(m,x,y,t){ if(y>=0&&y<m.length&&x>=0&&x<m[0].length) m[y][x]=t; }
+function fillRow(m,y,x1,x2,t){ for(let c=x1;c<=x2;c++) setTile(m,c,y,t); }
+function fillCol(m,x,y1,y2,t){ for(let r=y1;r<=y2;r++) setTile(m,x,r,t); }
+function fillRect(m,x,y,w,h,t){ for(let r=y;r<y+h;r++) for(let c=x;c<x+w;c++) setTile(m,c,r,t); }
+function getTile(m,x,y){
+  if(y<0||y>=m.length||x<0||x>=m[0].length) return T.SOLID;
+  return m[y][x];
+}
+function addBorders(m,leftDoor=false,rightDoor=false){
+  const MW=m[0].length, MH=m.length;
+  fillRow(m,0,0,MW-1,T.SOLID);
+  for(let r=18;r<MH;r++) fillRow(m,r,0,MW-1,T.SOLID);
+  for(let r=1;r<18;r++){
+    if(!leftDoor  || r<15||r>17) setTile(m,0,   r,T.SOLID);
+    if(!rightDoor || r<15||r>17) setTile(m,MW-1,r,T.SOLID);
+  }
+}
+function aabb(ax,ay,aw,ah, bx,by,bw,bh){
+  return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
+}
+
+// ── Room maps ─────────────────────────────────────────────────────────
+// Room 1: Quantum Split tutorial + switch puzzle
+// Ghost spawns almost on top of player (facing*PW*0.2 offset).
+// Player holds → : player walks right to Switch A (col 22), ghost walks left to
+// left-wall and rests on Switch B (col 1-3). Both pressed → Door (col 14) opens.
+function buildRoom1(){
+  const m=makeMap(40,22);
+  addBorders(m,false,true);
+  // Wall-jump practice pillar in reward zone (cols 27-28, rows 4-16)
+  fillRect(m, 27, 4, 2, 13, T.SOLID);
+  // Step platforms — all rows scaled to 0.8× height above floor (floor=row18)
+  // old13→14  old9→11  old5→8  old13→14
+  fillRow(m, 14, 16, 25, T.PLAT);   // lower landing shelf  (was row 13)
+  fillRow(m, 11, 29, 33, T.PLAT);   // mid platform         (was row 9)
+  fillRow(m,  8, 33, 37, T.PLAT);   // high platform        (was row 5)
+  fillRow(m, 14, 35, 38, T.PLAT);   // far lower shelf      (was row 13)
+  return m;
+}
+
+// Room 2: Ghost+Switch puzzle (same mechanic) + bonus Stare sub-puzzle
+// Player holds → → hits door → Switch A.  Ghost ← → left wall → Switch B.
+// After door opens: walk right to stairs → obs deck → Stare tower → reveal SealedCat.
+function buildRoom2(){
+  const m=makeMap(40,22);
+  addBorders(m,false,true);  // solid left wall, right door for exit
+  // Wall-jump practice pillar
+  fillRect(m,  4,  3,  2, 14, T.SOLID);  // cols 4-5, rows 3-16
+  // Left wall step for wall-jump practice
+  fillRow(m, 14,  1,  3, T.PLAT);
+  fillRow(m,  9,  1,  3, T.PLAT);
+  // Stair to observation deck (right of door at col 20)
+  fillRow(m, 15, 22, 27, T.PLAT);   // step 1
+  fillRow(m, 12, 24, 29, T.PLAT);   // step 2
+  fillRow(m,  9, 26, 32, T.PLAT);   // observation deck (cols 26-32, row 9)
+  // Stare target tower
+  fillRect(m, 34,  2,  2, 15, T.SOLID);  // cols 34-35
+  return m;
+}
+
+// Room 3: Both gimmicks + GOAL
+// LEFT SIDE: 3-step staircase gives player elevated terrain + Switch A (row 12).
+// CHAMBER:   col-26 wall seals the GOAL. Door is sole entry.
+//            Switch B at floor inside chamber (ghost presses it).
+// Vertical switch layout: Switch A is HIGH (row 12, left), Switch B is LOW (floor, right).
+// Puzzle: [E] spawn ghost, hold [←].
+//   Player walks left → jumps up 3 steps → lands on row-12 platform → presses Switch A.
+//   Ghost mirrors → walks right at floor → passes through door → presses Switch B.
+//   Both pressed simultaneously → door opens → enter chamber → climb PLAT steps → GOAL.
+function buildRoom3(){
+  const m=makeMap(40,22);
+  addBorders(m,true,false);   // left entry from Room2, right wall solid
+
+  // ── Left-side stepping platforms (before chamber wall at col 26) ─
+  fillRow(m, 15,  1,  9, T.PLAT);   // low step   (3 rows = 96px above floor ✓)
+  fillRow(m, 12,  3, 14, T.PLAT);   // mid step   (Switch A platform)
+  fillRow(m,  9,  5, 12, T.PLAT);   // high step  (extra challenge / visual)
+
+  // ── GOAL chamber wall at col 26 (rows 2-15) ─────────────────────
+  fillRect(m, 26, 2, 1, 14, T.SOLID);
+
+  // ── Inside chamber: 3-row ascending PLAT steps to GOAL ──────────
+  fillRow(m, 15, 27, 33, T.PLAT);   // step 1
+  fillRow(m, 12, 29, 36, T.PLAT);   // step 2
+  fillRow(m,  9, 31, 38, T.PLAT);   // step 3 + GOAL
+  setTile(m, 34,  9, T.GOAL);
+
+  return m;
+}
+
+const MAPS=[buildRoom1(),buildRoom2(),buildRoom3()];
+
+// ── Room Entities ─────────────────────────────────────────────────────
+function buildRoomEntities(roomIdx){
+  const switches=[], doors=[], sealedCats=[], stareTargets=[];
+
+  if(roomIdx===0){
+    // Puzzle mechanic: player holds ← → player hits left wall → stays on Switch B.
+    //   Ghost = -inputDir → ghost walks RIGHT → passes through door → reaches Switch A.
+    //   Both overlap simultaneously → door opens.
+    // Switch B: cols 1-2 (x=32-96).  Player blocked by left wall at x=32, AABB ✓
+    // Switch A: cols 20-21 (x=640-704). Ghost passes door (col 13) and reaches it.
+    // Door: cols 13-14 — blocks player, ghost passes through.
+    switches.push({id:'B', x:1*TILE,  y:16*TILE, w:2*TILE, h:TILE, pressed:false});
+    switches.push({id:'A', x:20*TILE, y:16*TILE, w:2*TILE, h:TILE, pressed:false});
+    doors.push({x:13*TILE, y1:0, y2:17*TILE, w:2*TILE,
+      linkedIds:['A','B'], open:false, openProgress:0});
+    sealedCats.push({id:'key', x:33*TILE+4, y:8*TILE-44, found:false, hidden:false});
+  }
+
+  if(roomIdx===1){
+    // Ghost+Switch puzzle:
+    //   Player holds → → walks right → blocked by door at col 20 → Switch A (cols 18-19)
+    //   Ghost walks ← → left solid wall (col 0) → Switch B (cols 0-1)
+    // Player stops at door: x = 20*TILE-PW = 616. Switch A: x=18*TILE=576, w=64. AABB ✓
+    // Ghost stops at wall:  x = TILE = 32.      Switch B: x=0,          w=64. AABB ✓
+    switches.push({id:'B', x:0,         y:17*TILE, w:2*TILE, h:TILE, pressed:false});
+    switches.push({id:'A', x:18*TILE,   y:17*TILE, w:2*TILE, h:TILE, pressed:false});
+    doors.push({x:20*TILE, y1:0, y2:18*TILE, w:2*TILE,
+      linkedIds:['A','B'], open:false, openProgress:0});
+    // Stare: target on left face of tower (cols 34-35).
+    // Observation deck at row 9, cols 26-32.
+    // Player on deck: ey ≈ 9*32-36+10 = 262. Tower face x = 34*32 = 1088.
+    // Player x ≈ 29*32 = 928.  ex=928+12+4=944.  dx=1088-944=144, dy=288-262=26 → ~10° ✓
+    stareTargets.push({
+      id:'tower_panel',
+      cx: 34*TILE, cy: 9*TILE,
+      x: 34*TILE-10, y: 7*TILE, w: 10, h: 4*TILE,
+      revealed:false, gazeTimer:0,
+    });
+    sealedCats.push({id:'ceil', x:30*TILE, y:9*TILE-48, found:false, hidden:true});
+  }
+
+  if(roomIdx===2){
+    // VERTICAL switch layout:
+    //   Switch A: HIGH — x=6*TILE, y=11*TILE (just above row-12 PLAT on the left)
+    //     Player lands on row-12 PLAT → feet at y=12*32=384, player.y=348
+    //     Switch A bottom = 11*32+32=384 → AABB overlap [352,384]∩[348,384] ✓
+    //   Switch B: LOW — x=27*TILE, y=17*TILE (floor level inside chamber)
+    //     Ghost at floor → feet at 18*32=576, ghost.y=540
+    //     Switch B bottom = 17*32+32=576 → overlap [544,576]∩[540,576] ✓
+    //   Door: col 26 full-height (ghost passes through, player waits outside)
+    switches.push({id:'A', x: 6*TILE, y:11*TILE, w:4*TILE, h:TILE, pressed:false});
+    switches.push({id:'B', x:27*TILE, y:17*TILE, w:2*TILE, h:TILE, pressed:false});
+    doors.push({x:26*TILE, y1:0, y2:18*TILE, w:TILE,
+      linkedIds:['A','B'], open:false, openProgress:0});
+  }
+
+  return {switches,doors,sealedCats,stareTargets};
+}
+
+// ── Particles ─────────────────────────────────────────────────────────
+const PARTS=Array.from({length:55},()=>({
+  x:Math.random()*W, y:Math.random()*H,
+  vy:-(Math.random()*18+6), r:Math.random()*1.4+0.4,
+  a:Math.random()*0.35+0.07, ph:Math.random()*Math.PI*2,
+}));
+function updateParts(dt){
+  for(const p of PARTS){
+    p.y+=p.vy*dt;
+    if(p.y<-4){ p.y=H+4; p.x=Math.random()*W; }
+  }
+}
+
+// ── Screen shake ──────────────────────────────────────────────────────
+let shakeTimer=0, shakeAmp=0, _shakeX=0, _shakeY=0;
+function triggerShake(amp,dur){ shakeAmp=amp; shakeTimer=dur; }
+function tickShake(dt){
+  if(shakeTimer<=0){ _shakeX=0; _shakeY=0; return; }
+  shakeTimer=Math.max(0,shakeTimer-dt);
+  const r=shakeTimer/0.35;
+  _shakeX=(Math.random()-.5)*shakeAmp*2*r;
+  _shakeY=(Math.random()-.5)*shakeAmp*r;
+}
+
+// ── Background ────────────────────────────────────────────────────────
+const bgGrad=bgCtx.createLinearGradient(0,0,0,H);
+bgGrad.addColorStop(0,'#0A1520'); bgGrad.addColorStop(1,'#0D1B2A');
+
+function drawBG(t,roomIdx){
+  bgCtx.fillStyle=bgGrad; bgCtx.fillRect(0,0,W,H);
+  bgCtx.strokeStyle='rgba(40,90,130,0.07)'; bgCtx.lineWidth=1;
+  for(let x=0;x<W;x+=64){bgCtx.beginPath();bgCtx.moveTo(x,0);bgCtx.lineTo(x,H);bgCtx.stroke();}
+  for(let y=0;y<H;y+=64){bgCtx.beginPath();bgCtx.moveTo(0,y);bgCtx.lineTo(W,y);bgCtx.stroke();}
+  if(roomIdx===0) drawDataCenterBG(t);
+  if(roomIdx===1) drawCorridorBG(t);
+  if(roomIdx===2) drawConvergeBG(t);
+  for(const p of PARTS){
+    const a=p.a*(0.5+0.5*Math.sin(t*1.8+p.ph));
+    bgCtx.fillStyle=`rgba(46,191,165,${a})`;
+    bgCtx.beginPath(); bgCtx.arc(p.x,p.y,p.r,0,Math.PI*2); bgCtx.fill();
+  }
+  const vig=bgCtx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.85);
+  vig.addColorStop(0,'transparent'); vig.addColorStop(1,'rgba(0,4,12,0.65)');
+  bgCtx.fillStyle=vig; bgCtx.fillRect(0,0,W,H);
+}
+function drawDataCenterBG(t){
+  const racks=[{x:80,y:200,w:55,h:320},{x:145,y:220,w:45,h:300},
+               {x:920,y:190,w:60,h:330},{x:990,y:210,w:48,h:310}];
+  for(const r of racks){
+    bgCtx.fillStyle='rgba(18,34,52,0.85)'; bgCtx.fillRect(r.x,r.y,r.w,r.h);
+    bgCtx.strokeStyle='rgba(50,90,130,0.3)'; bgCtx.lineWidth=1;
+    bgCtx.strokeRect(r.x,r.y,r.w,r.h);
+    for(let ly=r.y+18;ly<r.y+r.h-10;ly+=26){
+      const on=Math.sin(t*1.4+r.x*.05+ly*.08)>.4;
+      const on2=Math.sin(t*.9+r.x*.04+ly*.06+1.2)>.3;
+      bgCtx.fillStyle=on?'#FF4400':'#1A0800'; bgCtx.fillRect(r.x+r.w-10,ly,5,3);
+      bgCtx.fillStyle=on2?'#00CC44':'#001A08'; bgCtx.fillRect(r.x+r.w-10,ly+8,5,3);
+    }
+  }
+}
+function drawCorridorBG(t){
+  const cams=[{x:160,y:180},{x:500,y:160},{x:820,y:175},{x:1100,y:185}];
+  for(const cam of cams){
+    const blink=Math.sin(t*2.2+cam.x*.01)>0;
+    bgCtx.fillStyle=blink?'rgba(220,30,30,0.6)':'rgba(80,20,20,0.4)';
+    bgCtx.beginPath(); bgCtx.arc(cam.x,cam.y,6,0,Math.PI*2); bgCtx.fill();
+    bgCtx.fillStyle='rgba(40,60,80,0.7)'; bgCtx.fillRect(cam.x-18,cam.y-5,14,10);
+  }
+  const lineY=(t*30)%H;
+  bgCtx.strokeStyle='rgba(46,100,150,0.06)'; bgCtx.lineWidth=1;
+  for(let i=0;i<8;i++){
+    const y=(lineY+i*90)%H;
+    bgCtx.beginPath(); bgCtx.moveTo(0,y); bgCtx.lineTo(W,y); bgCtx.stroke();
+  }
+}
+function drawConvergeBG(t){
+  const gl=bgCtx.createRadialGradient(W,H/2,50,W,H/2,500);
+  gl.addColorStop(0,'rgba(46,191,165,0.08)'); gl.addColorStop(1,'transparent');
+  bgCtx.fillStyle=gl; bgCtx.fillRect(0,0,W,H);
+  const ag=bgCtx.createRadialGradient(36*TILE,13*TILE,20,36*TILE,13*TILE,200);
+  ag.addColorStop(0,`rgba(201,123,46,${.06+.04*Math.sin(t*1.5)})`);
+  ag.addColorStop(1,'transparent');
+  bgCtx.fillStyle=ag; bgCtx.fillRect(0,0,W,H);
+}
+
+// ── Tile renderer ─────────────────────────────────────────────────────
+function drawTiles(map){
+  const rows=map.length, cols=map[0].length;
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const t=map[r][c], x=c*TILE, y=r*TILE;
+      if(t===T.SOLID){
+        ctx.fillStyle=PAL.tileBod; ctx.fillRect(x,y,TILE,TILE);
+        ctx.fillStyle='rgba(26,48,80,0.9)'; ctx.fillRect(x+1,y+1,TILE-2,TILE-2);
+        if(getTile(map,c,r-1)!==T.SOLID){
+          ctx.fillStyle=PAL.tileTop; ctx.fillRect(x,y,TILE,3);
+          ctx.fillStyle='rgba(80,150,200,0.25)'; ctx.fillRect(x,y+3,TILE,2);
+        }
+      }
+      if(t===T.PLAT){
+        ctx.shadowColor=PAL.platGlw; ctx.shadowBlur=8;
+        ctx.fillStyle=PAL.platGlw; ctx.fillRect(x,y,TILE,3); ctx.shadowBlur=0;
+        ctx.fillStyle='rgba(46,191,165,0.25)'; ctx.fillRect(x,y+3,TILE,5);
+      }
+      if(t===T.GOAL){
+        ctx.shadowColor=PAL.goalGlw; ctx.shadowBlur=24;
+        ctx.fillStyle=PAL.goalGlw; ctx.fillRect(x+6,y+4,TILE-12,TILE-8); ctx.shadowBlur=0;
+        ctx.fillStyle='rgba(255,210,120,0.9)';
+        ctx.fillRect(x+TILE/2-2,y+6,4,TILE-12);
+        ctx.fillRect(x+8,y+TILE/2-2,TILE-16,4);
+      }
+    }
+  }
+}
+function drawDoorArch(side,t=0){
+  const gx=side==='left'?0:W-20;
+  const gy=15*TILE, gh=3*TILE;
+  const arrowDir=side==='left'?1:-1;       // gradient/portal direction (inward fade)
+  const chevDir =side==='left'?-1:1;       // chevrons point outward → where to go
+  const pulse=.5+.5*Math.sin(t*2.8);
+  const pulse2=.5+.5*Math.sin(t*2.8+1.4);
+
+  ctx.save();
+  // ── Portal backing ──────────────────────────────────────────────
+  const grad=ctx.createLinearGradient(gx,0,gx+20*arrowDir,0);
+  grad.addColorStop(0,`rgba(46,191,165,${0.18+0.10*pulse})`);
+  grad.addColorStop(1,'rgba(46,191,165,0)');
+  ctx.fillStyle=grad; ctx.fillRect(gx,gy,20,gh);
+
+  // ── Animated scan lines ─────────────────────────────────────────
+  ctx.save(); ctx.beginPath(); ctx.rect(gx,gy,20,gh); ctx.clip();
+  for(let i=0;i<6;i++){
+    const lineY=gy+((t*48+i*(gh/6))%gh);
+    ctx.fillStyle=`rgba(46,191,165,${0.12+0.08*Math.sin(t*4+i)})`;
+    ctx.fillRect(gx,lineY,20,3);
+  }
+  ctx.restore();
+
+  // ── Glowing edge ────────────────────────────────────────────────
+  const ex=side==='left'?gx+18:gx+2;
+  ctx.shadowColor=PAL.accentG; ctx.shadowBlur=18+8*pulse;
+  ctx.strokeStyle=`rgba(46,191,165,${0.7+0.2*pulse})`; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(ex,gy); ctx.lineTo(ex,gy+gh); ctx.stroke();
+  // Corner brackets
+  ctx.lineWidth=2.5;
+  const bl=8;
+  ctx.beginPath();
+  ctx.moveTo(ex,gy); ctx.lineTo(ex-arrowDir*bl,gy);
+  ctx.moveTo(ex,gy+gh); ctx.lineTo(ex-arrowDir*bl,gy+gh);
+  ctx.stroke();
+  ctx.shadowBlur=0;
+
+  // ── Beckoning chevrons ──────────────────────────────────────────
+  const chevX=ex+chevDir*(12+6*pulse2);
+  for(let i=0;i<3;i++){
+    const cy2=gy+gh/2+(i-1)*18;
+    const a=(i===1)?0.8+0.15*pulse:0.4+0.1*pulse;
+    ctx.globalAlpha=a;
+    ctx.strokeStyle=PAL.accentG; ctx.lineWidth=2; ctx.shadowBlur=6; ctx.shadowColor=PAL.accentG;
+    ctx.beginPath();
+    ctx.moveTo(chevX-chevDir*5,cy2-7);
+    ctx.lineTo(chevX,cy2);
+    ctx.lineTo(chevX-chevDir*5,cy2+7);
+    ctx.stroke();
+  }
+  ctx.shadowBlur=0; ctx.globalAlpha=1;
+
+  // ── Ambient beacon dots ─────────────────────────────────────────
+  for(let i=0;i<3;i++){
+    const dotT=(t*0.9+i*0.35)%1;
+    const dotX=ex+chevDir*(6+dotT*22);
+    const dotY=gy+gh/2;
+    ctx.globalAlpha=(1-dotT)*0.55;
+    ctx.fillStyle=PAL.accentG;
+    ctx.shadowColor=PAL.accentG; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(dotX,dotY,3-dotT*2,0,Math.PI*2); ctx.fill();
+  }
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+// ── Koto shape (shared) ───────────────────────────────────────────────
+// mode: 'normal' | 'ghost' | 'stare'
+// crouchBlend: 0=stand, 1=full cat-crouch (only used in normal/stare mode)
+function drawKotoShape(c,x,y,facing,landSquish,tailPhase,bob,mode,crouchBlend=0){
+  const cx=x+PW/2, cy=y+PH/2;
+  const sY=1-landSquish*.28, sX=1+landSquish*.18;
+  c.save();
+  c.translate(cx, cy+PH/2*(1-sY));
+  c.scale(facing*sX, sY);
+  c.translate(-PW/2, -PH/2-PH/2*(1-sY));
+  const bx=PW/2, by=PH/2;
+  const tw=Math.sin(tailPhase)*6, th=Math.cos(tailPhase*.7)*5;
+  const cb=crouchBlend;                      // applies to both player and ghost
+  const lp=(a,b)=>a+(b-a)*cb;               // lerp shorthand
+
+  if(mode==='ghost'){
+    const bc='rgba(110,60,190,0.85)';
+    // ── Ghost body positions with crouch interpolation ────────────
+    const bodyX=lp(bx,    bx-2);
+    const bodyY=lp(by+4+bob, PH-8);
+    const bodyRX=lp(13, 16);
+    const bodyRY=lp(16,  6);
+    const headX=lp(bx+3, bx+7);
+    const headY=lp(by-13+bob, PH-20);
+    const eyY =lp(by-13+bob, headY-5);
+    const elx =lp(bx-1,  bx+3);
+    const erx =lp(bx+7,  bx+11);
+    // Tail
+    c.strokeStyle='rgba(100,55,175,0.7)'; c.lineWidth=4; c.lineCap='round';
+    c.beginPath();
+    c.moveTo(lp(bx-12,bx-14), lp(by+14,PH-6));
+    c.quadraticCurveTo(lp(bx-28+tw,bx-24), lp(by+4+th,PH-22),
+                       lp(bx-22+tw*.7,bx-18), lp(by-10+th*.5,PH-32));
+    c.stroke();
+    // Body
+    c.shadowColor=PAL.splitGl; c.shadowBlur=14;
+    c.fillStyle=bc;
+    c.beginPath(); c.ellipse(bodyX,bodyY,bodyRX,bodyRY,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(headX,headY,lp(12,11),lp(11,10),.12,0,Math.PI*2); c.fill();
+    c.shadowBlur=0;
+    // Ears (follow head)
+    c.fillStyle=bc;
+    c.beginPath();
+    c.moveTo(lp(bx-4,bx+0),lp(by-20,headY+6)); c.lineTo(lp(bx-10,bx-6),lp(by-29,headY-3)); c.lineTo(lp(bx,bx+4),lp(by-23,headY+3));
+    c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(lp(bx+8,bx+12),lp(by-20,headY+6)); c.lineTo(lp(bx+15,bx+19),lp(by-29,headY-3)); c.lineTo(lp(bx+11,bx+15),lp(by-22,headY+4));
+    c.closePath(); c.fill();
+    // Eyes
+    c.shadowColor='#A78BFA'; c.shadowBlur=10;
+    c.fillStyle='rgba(130,100,230,1)';
+    c.beginPath(); c.ellipse(elx,eyY,4.2,3.5,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(erx,eyY,4.2,3.5,0,0,Math.PI*2); c.fill();
+    c.shadowBlur=0;
+    c.fillStyle='#160830';
+    c.beginPath(); c.ellipse(elx,eyY,1.6,2.6,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(erx,eyY,1.6,2.6,0,0,Math.PI*2); c.fill();
+    c.fillStyle='rgba(200,180,255,0.9)';
+    c.beginPath(); c.arc(elx+1,eyY-1.2,1,0,Math.PI*2); c.fill();
+    c.beginPath(); c.arc(erx+1,eyY-1.2,1,0,Math.PI*2); c.fill();
+    // Dashed outline
+    c.strokeStyle='rgba(139,92,246,0.55)'; c.lineWidth=1.5; c.setLineDash([4,3]);
+    c.beginPath(); c.ellipse(bodyX,bodyY,bodyRX,bodyRY,0,0,Math.PI*2); c.stroke();
+    c.beginPath(); c.ellipse(headX,headY,lp(12,11),lp(11,10),.12,0,Math.PI*2); c.stroke();
+    c.setLineDash([]);
+
+  } else {
+    const isStare = mode==='stare';
+
+    // ── Body: normal=(bx,by+4), crouch=(bx-2,PH-8) wide+flat ─────
+    const bodyX=lp(bx,   bx-2);
+    const bodyY=lp(by+4+bob, PH-8);
+    const bodyRX=lp(13, 16);
+    const bodyRY=lp(16,  6);
+
+    // ── Head: normal=(bx+3,by-13), crouch forward/down ───────────
+    const headX=lp(bx+3, bx+7);
+    const headY=lp(by-13+bob, PH-20);
+    const headRX=lp(12, 11);
+    const headRY=lp(11, 10);
+
+    // ── Tail ──────────────────────────────────────────────────────
+    c.strokeStyle=PAL.koto; c.lineWidth=5; c.lineCap='round';
+    if(isStare && cb<0.5){
+      c.beginPath(); c.moveTo(bx-10,by+14);
+      c.quadraticCurveTo(bx-14,by,bx-12,by-16); c.stroke();
+    } else {
+      // Crouch: tail arches upward from body rear
+      const tsx=lp(bx-12, bx-14);
+      const tsy=lp(by+14,  PH-6);
+      const tcx=lp(bx-16+tw, bx-24);
+      const tcy=lp(by+4+th,  PH-22);
+      const tex=lp(bx-12+tw*.7, bx-18);
+      const tey=lp(by-10+th*.5, PH-32);
+      c.beginPath(); c.moveTo(tsx,tsy);
+      c.quadraticCurveTo(tcx,tcy,tex,tey); c.stroke();
+    }
+
+    // ── Body ──────────────────────────────────────────────────────
+    c.fillStyle=PAL.koto;
+    c.beginPath(); c.ellipse(bodyX,bodyY,bodyRX,bodyRY,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.ellipse(headX,headY,headRX,headRY,.12,0,Math.PI*2); c.fill();
+
+    // ── Ears (follow head position) ───────────────────────────────
+    c.beginPath();
+    c.moveTo(lp(bx-4,bx+0),lp(by-20,by-9));
+    c.lineTo(lp(bx-10,bx-6),lp(by-29,by-18));
+    c.lineTo(lp(bx+0,bx+4),lp(by-23,by-12));
+    c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(lp(bx+8,bx+12),lp(by-20,by-9));
+    c.lineTo(lp(bx+15,bx+19),lp(by-29,by-18));
+    c.lineTo(lp(bx+11,bx+15),lp(by-22,by-11));
+    c.closePath(); c.fill();
+    // Inner ear
+    c.fillStyle='rgba(100,50,60,0.5)';
+    c.beginPath();
+    c.moveTo(lp(bx-4.5,bx+0),lp(by-21,by-10));
+    c.lineTo(lp(bx-8,bx-5),lp(by-27,by-16));
+    c.lineTo(lp(bx-.5,bx+3.5),lp(by-23.5,by-12.5));
+    c.closePath(); c.fill();
+    c.beginPath();
+    c.moveTo(lp(bx+8.5,bx+12),lp(by-21,by-10));
+    c.lineTo(lp(bx+13,bx+17),lp(by-27,by-16));
+    c.lineTo(lp(bx+10.5,bx+14.5),lp(by-22.5,by-11.5));
+    c.closePath(); c.fill();
+
+    // ── Eyes (follow head) ────────────────────────────────────────
+    const ey=lp(by-13+bob, headY-5);
+    const elx=lp(bx-1, bx+3);
+    const erx=lp(bx+7, bx+11);
+    if(isStare){
+      const gL=c.createRadialGradient(elx,ey,0,elx,ey,6);
+      gL.addColorStop(0,'#FFFFFF'); gL.addColorStop(0.4,'#9FECFF'); gL.addColorStop(1,'rgba(100,220,255,0)');
+      const gR=c.createRadialGradient(erx,ey,0,erx,ey,6);
+      gR.addColorStop(0,'#FFFFFF'); gR.addColorStop(0.4,'#9FECFF'); gR.addColorStop(1,'rgba(100,220,255,0)');
+      c.shadowColor=PAL.stareGl; c.shadowBlur=18;
+      c.fillStyle=gL; c.beginPath(); c.ellipse(elx,ey,5.5,4.5,0,0,Math.PI*2); c.fill();
+      c.fillStyle=gR; c.beginPath(); c.ellipse(erx,ey,5.5,4.5,0,0,Math.PI*2); c.fill();
+      c.shadowBlur=0;
+      c.fillStyle='rgba(5,5,20,0.9)';
+      c.beginPath(); c.ellipse(elx,ey,1,2.8,0,0,Math.PI*2); c.fill();
+      c.beginPath(); c.ellipse(erx,ey,1,2.8,0,0,Math.PI*2); c.fill();
+    } else {
+      // Left eye: gold
+      c.fillStyle='#E8C040';
+      c.beginPath(); c.ellipse(elx,ey,4.2,3.5,0,0,Math.PI*2); c.fill();
+      c.fillStyle='#18080A';
+      c.beginPath(); c.ellipse(elx,ey,1.6,2.6,0,0,Math.PI*2); c.fill();
+      // Right eye: silver
+      c.fillStyle='#A8C0D8';
+      c.beginPath(); c.ellipse(erx,ey,4.2,3.5,0,0,Math.PI*2); c.fill();
+      c.fillStyle='#08081A';
+      c.beginPath(); c.ellipse(erx,ey,1.6,2.6,0,0,Math.PI*2); c.fill();
+      c.fillStyle='rgba(255,255,255,0.9)';
+      c.beginPath(); c.arc(elx+1.2,ey-1.2,1.1,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(erx+1.2,ey-1.2,1.1,0,Math.PI*2); c.fill();
+    }
+    // Nose
+    c.fillStyle='rgba(180,100,110,0.7)';
+    c.beginPath(); c.ellipse(lp(bx+4,bx+8),ey+3,2,1.5,0,0,Math.PI*2); c.fill();
+  }
+  c.restore();
+}
+
+// ── Ghost ─────────────────────────────────────────────────────────────
+class Ghost {
+  constructor(x,y,initVy){
+    this.x=x; this.y=y; this.vx=0; this.vy=initVy||0;
+    this.onGround=false; this.facing=1;
+    this.tailPhase=Math.random()*Math.PI*2; this.bobPhase=0;
+    this.landSquish=0; this._wasGround=false; this.blinkTimer=0;
+    this.trail=[];
+    this.crouching=false; this.crouchH=PH; this.crouchSY=1.0;
+  }
+  jump()    { this.vy=JUMP_VY; }
+  jumpCut() { if(this.vy<0) this.vy*=JUMP_CUT; }
+
+  update(dt,inputDir,map,crouching=false){
+    this.blinkTimer+=dt; this.tailPhase+=dt*2.4;
+    if(this.landSquish>0) this.landSquish=Math.max(0,this.landSquish-dt*6);
+
+    // Mirror player's crouch state
+    if(crouching && !this.crouching && this.onGround){
+      this.y+=PH-PH_CROUCH; this.crouchH=PH_CROUCH; this.crouching=true;
+    } else if(!crouching && this.crouching){
+      // Stand up: check ceiling clearance
+      const blocked=this._ceilingBlocked(map);
+      if(!blocked){ this.y-=(PH-PH_CROUCH); this.crouchH=PH; this.crouching=false; }
+    }
+    const targetSY=this.crouching?0.5:1.0;
+    this.crouchSY+=(targetSY-this.crouchSY)*Math.min(1,dt*14);
+
+    const spd=this.crouching?P_SPEED*CROUCH_SPEED_MUL:P_SPEED;
+    this.vx=-inputDir*spd;
+    if(this.vx>0) this.facing=1; if(this.vx<0) this.facing=-1;
+    if(this.onGround&&this.vx!==0) this.bobPhase+=dt*8;
+    this.vy=Math.min(this.vy+GRAVITY*dt,MAX_FALL);
+    this.x+=this.vx*dt; this._cx(map);
+    const prevY=this.y; this.onGround=false;
+    this.y+=this.vy*dt; this._cy(map,prevY);
+    if(this.onGround&&!this._wasGround&&this.vy>80) this.landSquish=1;
+    this._wasGround=this.onGround;
+    if(this.x<0){this.x=0;this.vx=0;} if(this.x+PW>W){this.x=W-PW;this.vx=0;}
+    this.trail.push({x:this.x+PW/2,y:this.y+this.crouchH/2,life:1});
+    if(this.trail.length>9) this.trail.shift();
+    for(const p of this.trail) p.life-=dt*5;
+    this.trail=this.trail.filter(p=>p.life>0);
+  }
+  _ceilingBlocked(map){
+    const tx1=Math.floor((this.x+3)/TILE), tx2=Math.floor((this.x+PW-4)/TILE);
+    const ty=Math.floor((this.y-(PH-PH_CROUCH))/TILE);
+    for(let tx=tx1;tx<=tx2;tx++) if(getTile(map,tx,ty)===T.SOLID) return true;
+    return false;
+  }
+  _cx(map){
+    const ty1=Math.floor((this.y+3)/TILE), ty2=Math.floor((this.y+this.crouchH-4)/TILE);
+    if(this.vx>0){ const tx=Math.floor((this.x+PW-1)/TILE);
+      for(let ty=ty1;ty<=ty2;ty++) if(getTile(map,tx,ty)===T.SOLID){this.x=tx*TILE-PW;this.vx=0;break;} }
+    else if(this.vx<0){ const tx=Math.floor(this.x/TILE);
+      for(let ty=ty1;ty<=ty2;ty++) if(getTile(map,tx,ty)===T.SOLID){this.x=(tx+1)*TILE;this.vx=0;break;} }
+  }
+  _cy(map,prevY){
+    const tx1=Math.floor((this.x+3)/TILE), tx2=Math.floor((this.x+PW-4)/TILE);
+    if(this.vy>=0){
+      const rowStart=Math.floor((prevY+this.crouchH)/TILE);
+      const rowEnd  =Math.floor((this.y+this.crouchH)/TILE);
+      for(let ty=rowStart;ty<=rowEnd;ty++){
+        for(let tx=tx1;tx<=tx2;tx++){
+          const tile=getTile(map,tx,ty);
+          if(tile===T.SOLID){this.y=ty*TILE-this.crouchH;this.vy=0;this.onGround=true;return;}
+          if(tile===T.PLAT&&this.y+(1-PLAT_SNAP_MARGIN)*this.crouchH<=ty*TILE){this.y=ty*TILE-this.crouchH;this.vy=0;this.onGround=true;return;}
+        }
+      }
+    } else { const ty=Math.floor(this.y/TILE);
+      for(let tx=tx1;tx<=tx2;tx++)
+        if(getTile(map,tx,ty)===T.SOLID){this.y=(ty+1)*TILE;this.vy=0;return;}
+    }
+  }
+  draw(c){
+    for(const p of this.trail){
+      c.save(); c.globalAlpha=p.life*.22; c.fillStyle=PAL.splitGl;
+      c.beginPath(); c.arc(p.x,p.y,7*p.life,0,Math.PI*2); c.fill(); c.restore();
+    }
+    c.save(); c.globalAlpha=0.6+0.08*Math.sin(this.blinkTimer*4.5);
+    const bob=this.onGround&&this.vx!==0?Math.sin(this.bobPhase)*1.4:0;
+    const feetY=this.y+this.crouchH;
+    const drawY=feetY-PH;
+    const crouchBlend=Math.min(1,(1-this.crouchSY)*2);
+    drawKotoShape(c,this.x,drawY,this.facing,this.landSquish,this.tailPhase,bob,'ghost',crouchBlend);
+    c.restore();
+  }
+}
+
+// ── Wall-touch helper ─────────────────────────────────────────────────
+// Returns true if player body touches a SOLID tile on the given side.
+// dir: 1=right wall, -1=left wall; crouchH = effective hitbox height
+function touchesWall(px,py,dir,map,crouchH=PH){
+  const tx = dir>0 ? Math.floor((px+PW)/TILE) : Math.floor((px-1)/TILE);
+  const ty1=Math.floor((py+4)/TILE), ty2=Math.floor((py+crouchH-5)/TILE);
+  for(let ty=ty1;ty<=ty2;ty++) if(getTile(map,tx,ty)===T.SOLID) return true;
+  return false;
+}
+
+// ── Stare helper ──────────────────────────────────────────────────────
+// Compute effective cone params from stareAspect (area-constant)
+function stareParams(aspect){
+  const half  = STARE_HALF  / Math.sqrt(aspect);
+  const range = STARE_RANGE * Math.sqrt(aspect);
+  return {half, range};
+}
+
+function inGazeCone(px,py,facing,angleOffset,aspect,tx,ty){
+  const {half,range}=stareParams(aspect);
+  // Eye position (head center-right)
+  const ex=px+PW/2+facing*4, ey=py+10;
+  const dx=tx-ex, dy=ty-ey;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if(dist>range) return false;
+  // Angle from facing direction (+ offset)
+  const targetAngle=Math.atan2(dy,dx);
+  const facingAngle=(facing>0?0:Math.PI)+angleOffset;
+  let diff=targetAngle-facingAngle;
+  while(diff> Math.PI) diff-=Math.PI*2;
+  while(diff<-Math.PI) diff+=Math.PI*2;
+  return Math.abs(diff)<half;
+}
+
+function updateStareTargets(targets,px,py,facing,angleOffset,aspect,dt,sealedCats){
+  for(const tgt of targets){
+    if(tgt.revealed) continue;
+    // Sample multiple points on the target hitbox for robust detection
+    const pts=[
+      [tgt.cx, tgt.cy],                         // center
+      [tgt.x+tgt.w*0.2, tgt.y+tgt.h*0.2],      // top-left area
+      [tgt.x+tgt.w*0.8, tgt.y+tgt.h*0.2],      // top-right area
+      [tgt.x+tgt.w*0.2, tgt.y+tgt.h*0.8],      // bot-left area
+      [tgt.x+tgt.w*0.8, tgt.y+tgt.h*0.8],      // bot-right area
+    ];
+    const looking=pts.some(([tx,ty])=>inGazeCone(px,py,facing,angleOffset,aspect,tx,ty));
+    if(looking){
+      tgt.gazeTimer=Math.min(tgt.gazeTimer+dt,STARE_GAZE_TIME);
+      if(tgt.gazeTimer>=STARE_GAZE_TIME){
+        tgt.revealed=true;
+        triggerShake(4,.3);
+        for(const sc of sealedCats) if(sc.hidden) sc.hidden=false;
+      }
+    } else {
+      tgt.gazeTimer=Math.max(0,tgt.gazeTimer-dt*0.8);
+    }
+  }
+}
+
+// ── Player ────────────────────────────────────────────────────────────
+class Player {
+  constructor(x,y){
+    this.x=x; this.y=y; this.vx=0; this.vy=0;
+    this.facing=1; this.onGround=false;
+    this.coyoteTimer=0; this.jumpBuffer=0;
+    this.tailPhase=0; this.bobPhase=0;
+    this.landSquish=0; this._wasGround=false;
+    // Wall jump
+    this.wallDir=0;          // -1=left wall, 0=none, 1=right wall
+    this.wallJumpsLeft=1;    // reset on landing
+    this.wallJumpLock=0;     // timer: suppresses horizontal input override
+    this.wallSliding=false;
+    // Ph-3 Quantum Split
+    this.ghost=null;
+    this.splitFlash=0;
+    this.hasUsedSplit=false;
+    // Ph-4 The Stare
+    this.staring=false;
+    this.hasUsedStare=false;
+    this.stareAngleOffset=0;   // radians, ±PI/4, adjusted by ↑↓ during Q
+    this.stareAspect=1.0;      // [STARE_ASPECT_MIN, STARE_ASPECT_MAX]
+    // Crouch
+    this.crouching=false;
+    this.crouchH=PH;           // effective hitbox height (PH or PH_CROUCH)
+    this.crouchSY=1.0;         // visual scale [0.5, 1.0] (smoothed)
+    // Derived gimmick label
+    this.gimmick=null;
+  }
+
+  update(dt,map,roomEntities){
+    const doors       = roomEntities?.doors       ?? [];
+    const stareTargets= roomEntities?.stareTargets ?? [];
+    const sealedCats  = roomEntities?.sealedCats  ?? [];
+    const closedDoors = doors.filter(d=>!d.open);
+
+    const left  =Input.anyHeld('ArrowLeft','KeyA');
+    const right =Input.anyHeld('ArrowRight','KeyD');
+    const downHeld=Input.held('ArrowDown');
+    // Suppress ↑ as jump during stare (used for cone angle)
+    const jPress=this.staring
+      ? Input.anyPressed('Space','KeyZ')
+      : Input.anyPressed('Space','KeyZ','ArrowUp');
+    const jRel  =Input.anyReleased('Space','KeyZ','ArrowUp');
+    const qHeld =Input.held('KeyQ');
+    const inputDir=right?1:left?-1:0;
+
+    // Timers
+    this.tailPhase+=dt*2.4;
+    if(this.onGround&&inputDir!==0&&!this.staring&&!this.crouching) this.bobPhase+=dt*8;
+    if(this.landSquish>0) this.landSquish=Math.max(0,this.landSquish-dt*6);
+    if(this.splitFlash >0) this.splitFlash =Math.max(0,this.splitFlash -dt*5);
+    if(this.wallJumpLock>0) this.wallJumpLock=Math.max(0,this.wallJumpLock-dt);
+
+    // ── Crouch (ground only, no ghost, no stare) ─────────────────
+    const wantCrouch=this.onGround && !this.staring && downHeld;
+    const prevCrouch=this.crouching;
+    if(!prevCrouch && wantCrouch){
+      // Start crouching: shift y down to keep feet in place
+      this.y+=PH-PH_CROUCH; this.crouchH=PH_CROUCH; this.crouching=true;
+    } else if(prevCrouch && !wantCrouch){
+      // Try to stand: check ceiling clearance
+      const tx1=Math.floor((this.x+3)/TILE), tx2=Math.floor((this.x+PW-4)/TILE);
+      const newTopY=this.y-PH_CROUCH;
+      const ceilRow=Math.floor(newTopY/TILE);
+      let blocked=false;
+      for(let tx=tx1;tx<=tx2;tx++){
+        if(getTile(map,tx,ceilRow)===T.SOLID){blocked=true;break;}
+      }
+      if(!blocked){ this.y-=PH_CROUCH; this.crouchH=PH; this.crouching=false; }
+      // else stay crouching
+    }
+    // Smooth visual scale
+    const targetSY=this.crouching?0.5:1.0;
+    this.crouchSY+=(targetSY-this.crouchSY)*Math.min(1,dt*14);
+
+    // ── E: Quantum Split ─────────────────────────────────────────
+    if(Input.pressed('KeyE') && !this.staring && !this.crouching){
+      if(this.ghost){
+        this.ghost=null; this.splitFlash=1; this.gimmick=null;
+      } else {
+        // Ghost spawns almost on top of player (20% of PW offset)
+        const gx=this.x+this.facing*Math.round(PW*0.2);
+        this.ghost=new Ghost(gx,this.y,this.vy);
+        this.ghost.onGround=this.onGround;
+        this.splitFlash=1; this.hasUsedSplit=true; this.gimmick='split';
+      }
+    }
+
+    // ── Q: The Stare (ground only, no ghost active) ───────────────
+    const canStare=this.onGround && !this.ghost && !this.crouching;
+    this.staring = canStare && qHeld;
+    if(this.staring){
+      this.hasUsedStare=true;
+      // ↑↓ adjust cone center angle (±45°)
+      if(Input.held('ArrowUp'))
+        this.stareAngleOffset=Math.max(-Math.PI/4,this.stareAngleOffset-STARE_ANGLE_SPEED*dt);
+      if(Input.held('ArrowDown'))
+        this.stareAngleOffset=Math.min( Math.PI/4,this.stareAngleOffset+STARE_ANGLE_SPEED*dt);
+      // ←→ adjust cone aspect (forward=narrow, backward=wide)
+      const fwdHeld=(this.facing>0?right:left);
+      const bwdHeld=(this.facing>0?left:right);
+      if(fwdHeld)
+        this.stareAspect=Math.min(STARE_ASPECT_MAX,this.stareAspect+STARE_ASPECT_SPEED*dt);
+      if(bwdHeld)
+        this.stareAspect=Math.max(STARE_ASPECT_MIN,this.stareAspect-STARE_ASPECT_SPEED*dt);
+
+      updateStareTargets(stareTargets,this.x,this.y,this.facing,
+        this.stareAngleOffset,this.stareAspect,dt,sealedCats);
+      this.gimmick='stare';
+    } else {
+      if(prevCrouch!==this.crouching || !qHeld){
+        // Reset cone params when stare ends
+        this.stareAngleOffset=0; this.stareAspect=1.0;
+      }
+      if(this.gimmick==='stare') this.gimmick=null;
+    }
+
+    // ── Jump buffer ───────────────────────────────────────────────
+    if(jPress) this.jumpBuffer=JBUF_T;
+    this.jumpBuffer=Math.max(0,this.jumpBuffer-dt);
+
+    // ── Detect wall contact (before moving) ───────────────────────
+    this.wallDir=0;
+    if(!this.onGround){
+      if(touchesWall(this.x,this.y, 1,map,this.crouchH)) this.wallDir= 1;
+      else if(touchesWall(this.x,this.y,-1,map,this.crouchH)) this.wallDir=-1;
+    }
+
+    // ── Wall slide: cap fall speed while pressing into wall ────────
+    this.wallSliding=false;
+    if(this.wallDir!==0 && !this.onGround && this.vy>0){
+      const pressingInto=(this.wallDir===1&&right)||(this.wallDir===-1&&left);
+      if(pressingInto){
+        this.wallSliding=true;
+        this.vy=Math.min(this.vy,WALLSLIDE_CAP);
+      }
+    }
+
+    // ── Jump execution ────────────────────────────────────────────
+    let didJump=false;
+    if(this.jumpBuffer>0){
+      // Normal / coyote jump
+      if(this.coyoteTimer>0){
+        this.vy=JUMP_VY; this.jumpBuffer=0; this.coyoteTimer=0; didJump=true;
+      }
+      // Wall jump (air, touching wall, have stock)
+      else if(this.wallDir!==0 && this.wallJumpsLeft>0){
+        this.vx=-this.wallDir*WALLJUMP_VX;
+        this.vy=WALLJUMP_VY;
+        this.facing=-this.wallDir;
+        this.wallJumpsLeft--;
+        this.wallJumpLock=WALLJUMP_LOCK;
+        this.jumpBuffer=0;
+        didJump=true;
+        triggerShake(3,.12);
+      }
+    }
+    if(didJump && this.ghost) this.ghost.jump();
+    if(jRel && this.vy<0){
+      this.vy*=JUMP_CUT;
+      if(this.ghost) this.ghost.jumpCut();
+    }
+
+    // ── Horizontal move (lock after wall jump) ────────────────────
+    if(this.wallJumpLock<=0){
+      if(inputDir!==0) this.facing=inputDir;
+      if(!this.staring){
+        const spd=this.crouching?P_SPEED*CROUCH_SPEED_MUL:P_SPEED;
+        this.vx=inputDir*spd;
+      } else this.vx=0;
+    }
+
+    // ── Gravity ───────────────────────────────────────────────────
+    this.vy=Math.min(this.vy+GRAVITY*dt,MAX_FALL);
+
+    // ── Move + collide ────────────────────────────────────────────
+    this.x+=this.vx*dt; this._cx(map,closedDoors);
+    const prevY=this.y; this.onGround=false;
+    this.y+=this.vy*dt; this._cy(map,prevY);
+
+    // Landing
+    if(this.onGround&&!this._wasGround){
+      if(this.vy>80) this.landSquish=1;
+      this.wallJumpsLeft=1; // reset on landing
+    }
+    this._wasGround=this.onGround;
+    if(this.onGround) this.coyoteTimer=COYOTE_T;
+    else              this.coyoteTimer=Math.max(0,this.coyoteTimer-dt);
+
+    // ── Ghost update ──────────────────────────────────────────────
+    if(this.ghost) this.ghost.update(dt,inputDir,map,this.crouching);
+
+    // Sync gimmick label
+    if(this.ghost)         this.gimmick='split';
+    else if(this.staring)  this.gimmick='stare';
+    else                   this.gimmick=null;
+  }
+
+  _cx(map,doors=[]){
+    const ty1=Math.floor((this.y+3)/TILE), ty2=Math.floor((this.y+this.crouchH-4)/TILE);
+    if(this.vx>0){ const tx=Math.floor((this.x+PW-1)/TILE);
+      for(let ty=ty1;ty<=ty2;ty++)
+        if(getTile(map,tx,ty)===T.SOLID){this.x=tx*TILE-PW;this.vx=0;break;} }
+    else if(this.vx<0){ const tx=Math.floor(this.x/TILE);
+      for(let ty=ty1;ty<=ty2;ty++)
+        if(getTile(map,tx,ty)===T.SOLID){this.x=(tx+1)*TILE;this.vx=0;break;} }
+    for(const d of doors){
+      const dw=d.w||TILE;
+      if(this.y+this.crouchH>d.y1&&this.y<d.y2&&this.x+PW>d.x&&this.x<d.x+dw){
+        this.x=this.vx>=0?d.x-PW:d.x+dw; this.vx=0;
+      }
+    }
+  }
+  _cy(map,prevY){
+    const tx1=Math.floor((this.x+3)/TILE), tx2=Math.floor((this.x+PW-4)/TILE);
+    if(this.vy>=0){
+      // Sweep all tile rows from previous feet to current feet to catch fast-fall PLAT
+      const rowStart=Math.floor((prevY+this.crouchH)/TILE);
+      const rowEnd  =Math.floor((this.y+this.crouchH)/TILE);  // no -1: avoids missing PLAT at exact tile boundary
+      for(let ty=rowStart;ty<=rowEnd;ty++){
+        for(let tx=tx1;tx<=tx2;tx++){
+          const tile=getTile(map,tx,ty);
+          if(tile===T.SOLID){
+            this.y=ty*TILE-this.crouchH;this.vy=0;this.onGround=true;return;
+          }
+          // Land when bottom PLAT_SNAP_MARGIN fraction (40%) overlaps platform top
+          if(tile===T.PLAT && this.y+(1-PLAT_SNAP_MARGIN)*this.crouchH<=ty*TILE){
+            this.y=ty*TILE-this.crouchH;this.vy=0;this.onGround=true;return;
+          }
+          // GOAL: land on it AND trigger (acts like solid floor)
+          if(tile===T.GOAL){
+            game.triggerGoal();
+            this.y=ty*TILE-this.crouchH;this.vy=0;this.onGround=true;return;
+          }
+        }
+      }
+    } else { const ty=Math.floor(this.y/TILE);
+      for(let tx=tx1;tx<=tx2;tx++)
+        if(getTile(map,tx,ty)===T.SOLID){this.y=(ty+1)*TILE;this.vy=0;return;}
+    }
+  }
+
+  draw(c,t){
+    if(this.ghost) this.ghost.draw(c);
+    // Split flash ring
+    if(this.splitFlash>0){
+      const r=(1-this.splitFlash)*90;
+      c.save(); c.globalAlpha=this.splitFlash*.45;
+      c.beginPath(); c.arc(this.x+PW/2,this.y+this.crouchH/2,r,0,Math.PI*2);
+      c.strokeStyle=PAL.splitGl; c.lineWidth=3; c.stroke();
+      if(this.splitFlash>.7){
+        c.globalAlpha=(this.splitFlash-.7)/.3*.25;
+        c.fillStyle='rgba(139,92,246,1)'; c.fill();
+      }
+      c.restore();
+    }
+    // Wall-slide dust sparks
+    if(this.wallSliding){
+      const sx=this.wallDir>0?this.x+PW:this.x;
+      const sy=this.y+this.crouchH/2+Math.random()*8-4;
+      c.save(); c.fillStyle=`rgba(80,150,200,${Math.random()*.5+.15})`;
+      c.beginPath(); c.arc(sx,sy,2+Math.random()*2,0,Math.PI*2); c.fill();
+      c.restore();
+    }
+    const bob=this.onGround&&this.vx!==0&&!this.staring&&!this.crouching?Math.sin(this.bobPhase)*1.4:0;
+    const mode=this.staring?'stare':'normal';
+    // crouchBlend: 0=stand 1=full crouch. crouchSY goes 1→0.5, so blend=(1-crouchSY)*2
+    const crouchBlend=Math.min(1,(1-this.crouchSY)*2);
+    const feetY=this.y+this.crouchH;
+    const drawY=feetY-PH;
+    drawKotoShape(c,this.x,drawY,this.facing,this.landSquish,this.tailPhase,bob,mode,crouchBlend);
+  }
+}
+
+// ── Entity updaters ───────────────────────────────────────────────────
+function updateSwitches(switches,player,ghost){
+  for(const sw of switches){
+    sw.pressed=false;
+    if(aabb(player.x,player.y,PW,player.crouchH,sw.x,sw.y,sw.w,sw.h)) sw.pressed=true;
+    if(ghost&&aabb(ghost.x,ghost.y,PW,PH,sw.x,sw.y,sw.w,sw.h)) sw.pressed=true;
+  }
+}
+function updateDoors(doors,switches,dt){
+  for(const door of doors){
+    if(door.open){ door.openProgress=Math.min(1,door.openProgress+dt*2.2); continue; }
+    const allOn=door.linkedIds.every(id=>switches.find(s=>s.id===id)?.pressed);
+    if(allOn){ door.open=true; triggerShake(5,.35); }
+  }
+}
+function checkCeilRescue(sealedCats,player,roomIdx){
+  for(const sc of sealedCats){
+    if(sc.found||sc.hidden) continue;
+    const dx=(sc.x+12)-(player.x+PW/2);
+    const dy=(sc.y+18)-(player.y+PH/2);
+    if(dx*dx+dy*dy<32*32){
+      sc.found=true;
+      sc.foundTimer=1.8;  // effect countdown
+      triggerShake(6,.4);
+    }
+  }
+}
+
+// ── Entity renderers ──────────────────────────────────────────────────
+function drawSwitchConnections(switches,doors,t){
+  for(const door of doors){
+    if(door.openProgress>=1) continue;
+    const dcx=door.x+(door.w||TILE)/2, cableY=door.y2-12;
+    const allOn=door.linkedIds.every(id=>switches.find(s=>s.id===id)?.pressed);
+    for(const sid of door.linkedIds){
+      const sw=switches.find(s=>s.id===sid); if(!sw) continue;
+      const pulse=.5+.5*Math.sin(t*3+sw.x*.01);
+      ctx.save(); ctx.globalAlpha=(1-door.openProgress)*(allOn?.9:.35);
+      ctx.strokeStyle=allOn?PAL.accentG:`rgba(139,92,246,${.4+.3*pulse})`;
+      ctx.lineWidth=2; ctx.setLineDash([6,5]);
+      ctx.shadowColor=allOn?PAL.accentG:PAL.splitGl; ctx.shadowBlur=allOn?12:4;
+      ctx.beginPath(); ctx.moveTo(sw.x+sw.w/2,cableY); ctx.lineTo(dcx,cableY); ctx.stroke();
+      ctx.setLineDash([]); ctx.shadowBlur=0; ctx.restore();
+    }
+  }
+}
+function drawSwitch(sw,t){
+  const {x,y,w,h,pressed,id}=sw;
+  ctx.fillStyle=pressed?'rgba(20,60,50,0.95)':'rgba(15,25,45,0.9)';
+  ctx.fillRect(x,y,w,h);
+  ctx.fillStyle=pressed?'rgba(46,191,165,0.12)':'rgba(139,92,246,0.08)';
+  ctx.fillRect(x+3,y+3,w-6,h-6);
+  ctx.shadowColor=pressed?PAL.accentG:PAL.splitGl; ctx.shadowBlur=pressed?18:6;
+  ctx.strokeStyle=pressed?PAL.accentG:'rgba(139,92,246,0.55)'; ctx.lineWidth=2;
+  ctx.strokeRect(x+1,y+1,w-2,h-2); ctx.shadowBlur=0;
+  const cx_=x+w/2, cy_=y+h/2;
+  ctx.shadowColor=pressed?PAL.accentG:PAL.splitGl; ctx.shadowBlur=pressed?14:5;
+  ctx.fillStyle=pressed?PAL.accentG:'rgba(139,92,246,0.8)';
+  ctx.beginPath(); ctx.arc(cx_,cy_,6,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.font=`bold 11px ${MONO}`; ctx.fillStyle=pressed?'#CCFFE8':'rgba(180,160,230,0.9)';
+  ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(id,cx_,cy_); ctx.textAlign='left';
+  if(pressed){
+    const ripple=(t*.8)%1;
+    ctx.save(); ctx.globalAlpha=.3*(1-ripple); ctx.strokeStyle=PAL.accentG; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(cx_,cy_,6+ripple*12,0,Math.PI*2); ctx.stroke(); ctx.restore();
+  }
+}
+function drawDoor(door,t){
+  if(door.openProgress>=1) return;
+  const {x,y1,y2,openProgress:op}=door, dw=door.w||TILE*2;
+  const slid=op*(y2-y1), top=y1-slid, bot=y2-slid, dh=bot-top;
+  if(dh<=0) return;
+  ctx.fillStyle='rgba(12,8,28,0.93)'; ctx.fillRect(x,top,dw,dh);
+  ctx.save(); ctx.beginPath(); ctx.rect(x,top,dw,dh); ctx.clip();
+  for(let i=0;i<8;i++){
+    const lx=x+i*(dw/7), pulse=Math.sin(t*3.5+i*1.1)*.5+.5;
+    ctx.shadowColor=PAL.splitGl; ctx.shadowBlur=8*pulse;
+    ctx.strokeStyle=`rgba(139,92,246,${.25+.45*pulse})`; ctx.lineWidth=1.5;
+    ctx.setLineDash([7,5]);
+    ctx.beginPath(); ctx.moveTo(lx,top); ctx.lineTo(lx,bot); ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.shadowBlur=0; ctx.restore();
+  ctx.strokeStyle='rgba(139,92,246,0.75)'; ctx.lineWidth=2; ctx.strokeRect(x,top,dw,dh);
+  if(dh>40){
+    const mid=(top+bot)/2;
+    ctx.font=`12px ${MONO}`; ctx.fillStyle='rgba(180,150,240,0.85)';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('×2',x+dw/2,mid); ctx.textAlign='left';
+  }
+}
+
+// ── Stare target panel renderer ───────────────────────────────────────
+function drawStareTarget(tgt,t){
+  if(tgt.revealed) return;
+  const {cx,cy,gazeTimer}=tgt;
+  const fill=gazeTimer/STARE_GAZE_TIME;
+  const pulse=.5+.5*Math.sin(t*2.5);
+
+  // Panel visual on tower face
+  ctx.save();
+  // Backing
+  ctx.fillStyle=`rgba(8,14,30,0.9)`;
+  ctx.fillRect(cx-10,cy-24,10,48);
+  // Glow border
+  ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=fill>0?10+fill*14:4*pulse;
+  ctx.strokeStyle=`rgba(125,216,248,${.3+.4*pulse+fill*.3})`; ctx.lineWidth=2;
+  ctx.strokeRect(cx-9,cy-23,8,46);
+  // Fill meter
+  if(fill>0){
+    const mh=44*fill;
+    ctx.fillStyle=`rgba(125,216,248,${.3+.4*fill})`;
+    ctx.fillRect(cx-7,cy+22-mh,5,mh);
+  }
+  // Eye icon
+  ctx.shadowBlur=0;
+  ctx.fillStyle=`rgba(125,216,248,${.35+.3*pulse})`;
+  ctx.beginPath(); ctx.ellipse(cx-5,cy,5,3,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=`rgba(10,15,30,0.9)`;
+  ctx.beginPath(); ctx.ellipse(cx-5,cy,2,2,0,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// ── Ray cast helper (used by gaze cone) ──────────────────────────────
+// Returns distance from (ex,ey) in direction 'angle' until hitting a SOLID tile,
+// capped at maxDist. Step=8px ≈ quarter-tile; fine enough for visual cone.
+function castRayTile(ex,ey,angle,maxDist,map){
+  if(!map) return maxDist;
+  const dx=Math.cos(angle), dy=Math.sin(angle);
+  const step=8;
+  for(let d=step; d<=maxDist; d+=step){
+    const tx=Math.floor((ex+dx*d)/TILE);
+    const ty=Math.floor((ey+dy*d)/TILE);
+    if(getTile(map,tx,ty)===T.SOLID) return Math.max(0,d-step);
+  }
+  return maxDist;
+}
+
+// ── Gaze cone overlay (raycasted, soft glow) ─────────────────────────
+function drawGazeCone(player,t,map){
+  if(!player.staring) return;
+  const ex=player.x+PW/2+player.facing*4, ey=player.y+10;
+  const baseAng=player.facing>0?0:Math.PI;
+  const ang=baseAng+player.stareAngleOffset;
+  const {half,range}=stareParams(player.stareAspect);
+
+  // Build ray-cast polygon (64 rays)
+  const NUM_RAYS=64;
+  const pts=[];
+  for(let i=0;i<=NUM_RAYS;i++){
+    const a=ang-half+(i/NUM_RAYS)*half*2;
+    const d=castRayTile(ex,ey,a,range,map);
+    pts.push([ex+Math.cos(a)*d, ey+Math.sin(a)*d]);
+  }
+
+  ctx.save();
+  ctx.globalCompositeOperation='lighter';
+
+  const path=()=>{
+    ctx.beginPath(); ctx.moveTo(ex,ey);
+    for(const [px,py] of pts) ctx.lineTo(px,py);
+    ctx.closePath();
+  };
+
+  const pulse=0.5+0.5*Math.sin(t*3.2);
+
+  // ── Blurred layers: wall-hit edges feather into obstacle surface ──
+  // blur(16px) softens polygon edges; arc edges are already alpha=0 so unaffected.
+  ctx.filter='blur(16px)';
+
+  // Layer 1: wide soft body
+  const g1=ctx.createRadialGradient(ex,ey,0,ex,ey,range);
+  g1.addColorStop(0,  `rgba(125,216,248,${0.22+0.05*pulse})`);
+  g1.addColorStop(0.5,`rgba(100,190,230,${0.11+0.02*pulse})`);
+  g1.addColorStop(1,  'rgba(80,160,210,0)');
+  path(); ctx.fillStyle=g1; ctx.fill();
+
+  // Layer 2: bright core (inner 40%)
+  const g2=ctx.createRadialGradient(ex,ey,0,ex,ey,range*0.4);
+  g2.addColorStop(0, `rgba(180,240,255,${0.26+0.07*pulse})`);
+  g2.addColorStop(1, 'rgba(125,216,248,0)');
+  path(); ctx.fillStyle=g2; ctx.fill();
+
+  // Layer 3: breath pulse (slow, very low alpha)
+  const breathA=0.05*Math.sin(t*1.8+0.5)+0.05;
+  const g3=ctx.createRadialGradient(ex,ey,0,ex,ey,range);
+  g3.addColorStop(0,  `rgba(200,245,255,${breathA*2})`);
+  g3.addColorStop(0.6,`rgba(125,216,248,${breathA})`);
+  g3.addColorStop(1,  'rgba(80,160,210,0)');
+  path(); ctx.fillStyle=g3; ctx.fill();
+
+  // ── Sharp inner core (no blur): thin bright spot at origin ────────
+  ctx.filter='none';
+  const gCore=ctx.createRadialGradient(ex,ey,0,ex,ey,18);
+  gCore.addColorStop(0,`rgba(220,250,255,${0.35+0.1*pulse})`);
+  gCore.addColorStop(1,'rgba(125,216,248,0)');
+  ctx.beginPath(); ctx.arc(ex,ey,18,0,Math.PI*2);
+  ctx.fillStyle=gCore; ctx.fill();
+
+  ctx.globalCompositeOperation='source-over';
+
+  // ── Center-line indicator ─────────────────────────────────────────
+  if(Math.abs(player.stareAngleOffset)>0.02){
+    const d=castRayTile(ex,ey,ang,range*0.55,map);
+    const g4=ctx.createLinearGradient(ex,ey,ex+Math.cos(ang)*d,ey+Math.sin(ang)*d);
+    g4.addColorStop(0,'rgba(200,245,255,0.45)');
+    g4.addColorStop(1,'rgba(125,216,248,0)');
+    ctx.globalAlpha=0.55+0.15*pulse;
+    ctx.strokeStyle=g4; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(ex,ey);
+    ctx.lineTo(ex+Math.cos(ang)*d, ey+Math.sin(ang)*d); ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ── Sealed cat / Ceil renderer ────────────────────────────────────────
+function drawSealedCat(sc,t){
+  // ── Found effect (plays for 1.8s then fades) ──────────────────────
+  if(sc.found){
+    if(!sc.foundTimer||sc.foundTimer<=0) return;
+    const ft=sc.foundTimer/1.8;  // 1→0
+    const cx2=sc.x+15, cy2=sc.y+14;
+    ctx.save();
+    // Expanding rings
+    for(let i=0;i<3;i++){
+      const phase=(ft+i*0.3)%1;
+      const r=20+phase*55;
+      ctx.globalAlpha=(1-phase)*0.7*ft;
+      ctx.strokeStyle=sc.id==='ceil'?PAL.stareGl:PAL.accentG;
+      ctx.lineWidth=2.5; ctx.shadowColor=ctx.strokeStyle; ctx.shadowBlur=14;
+      ctx.beginPath(); ctx.arc(cx2,cy2,r,0,Math.PI*2); ctx.stroke();
+    }
+    // Star burst sparkles (8 directions)
+    ctx.shadowBlur=0;
+    for(let i=0;i<8;i++){
+      const ang=i/8*Math.PI*2;
+      const dist=28+ft*30;
+      const sx=cx2+Math.cos(ang)*dist, sy=cy2+Math.sin(ang)*dist;
+      ctx.globalAlpha=ft*0.9;
+      ctx.fillStyle=i%2===0?(sc.id==='ceil'?'#7DD8F8':'#2EBFA5'):'#FFFFFF';
+      ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
+      ctx.beginPath(); ctx.arc(sx,sy,3-ft*1.5,0,Math.PI*2); ctx.fill();
+    }
+    // Central flash on fresh collection
+    if(ft>0.7){
+      ctx.globalAlpha=(ft-0.7)/0.3*0.6;
+      const grd=ctx.createRadialGradient(cx2,cy2,0,cx2,cy2,40);
+      grd.addColorStop(0,sc.id==='ceil'?'rgba(125,216,248,0.9)':'rgba(46,191,165,0.9)');
+      grd.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.shadowBlur=0; ctx.fillStyle=grd;
+      ctx.beginPath(); ctx.arc(cx2,cy2,40,0,Math.PI*2); ctx.fill();
+    }
+    // "FOUND!" label
+    ctx.globalAlpha=Math.min(1,ft*2)*ft;
+    ctx.font=`bold 14px ${MONO}`; ctx.textAlign='center'; ctx.textBaseline='bottom';
+    ctx.fillStyle=sc.id==='ceil'?PAL.stareGl:PAL.accentG;
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=12;
+    ctx.fillText('FOUND!',cx2,sc.y-12+(1-ft)*8);
+    ctx.shadowBlur=0; ctx.restore();
+    return;
+  }
+  if(sc.hidden) return;
+
+  const {x,y}=sc;
+  const isCeil=sc.id==='ceil';
+  const pulse=isCeil?(.7+.08*Math.sin(t*1.2)):(.45+.1*Math.sin(t*.9));
+  ctx.save();
+  // Proximity beacon: pulsing outer ring
+  ctx.globalAlpha=0.28+0.12*Math.sin(t*2.2);
+  ctx.strokeStyle=isCeil?PAL.stareGl:PAL.accentG;
+  ctx.lineWidth=1.5; ctx.setLineDash([4,4]);
+  ctx.shadowColor=ctx.strokeStyle; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.arc(x+15,y+14,22+3*Math.sin(t*2.2),0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]); ctx.shadowBlur=0;
+
+  ctx.globalAlpha=pulse;
+  ctx.fillStyle=isCeil?'#2A3D4A':'#2A3545';
+  if(isCeil){ ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=14; }
+  ctx.beginPath(); ctx.ellipse(x+12,y+22,11,14,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+15,y+6, 10, 9,.1,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x+8,y-2);ctx.lineTo(x+4,y-11);ctx.lineTo(x+12,y-3);ctx.closePath();ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x+18,y-2);ctx.lineTo(x+23,y-11);ctx.lineTo(x+18,y-3);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle=isCeil?`rgba(125,216,248,0.6)`:'rgba(46,191,165,0.4)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(x+12,y+22,11,14,0,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(x+15,y+6, 10, 9,.1,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle=isCeil?'rgba(125,216,248,0.9)':'rgba(90,210,180,0.9)';
+  ctx.font=`bold 13px ${MONO}`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=8;
+  ctx.fillText(isCeil?'!':'?',x+15,y+6); ctx.shadowBlur=0; ctx.textAlign='left';
+  ctx.restore();
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────
+function roundRect(c,x,y,w,h,r){
+  c.beginPath(); c.moveTo(x+r,y);
+  c.lineTo(x+w-r,y);  c.arcTo(x+w,y,  x+w,y+r,  r);
+  c.lineTo(x+w,y+h-r);c.arcTo(x+w,y+h,x+w-r,y+h,r);
+  c.lineTo(x+r,y+h);  c.arcTo(x,y+h,  x,y+h-r,  r);
+  c.lineTo(x,y+r);    c.arcTo(x,y,    x+r,y,    r);
+  c.closePath();
+}
+
+function drawHUD(roomIdx,player,t){
+  const meta=ROOM_META[roomIdx];
+  ctx.font=`13px ${MONO}`; ctx.textBaseline='top';
+  ctx.fillStyle='rgba(46,191,165,0.35)'; ctx.fillText(`${meta.chapter} ·`,18,14);
+  ctx.fillStyle='rgba(180,210,230,0.45)'; ctx.fillText(meta.name,76,14);
+
+  // Room progress dots
+  for(let i=0;i<3;i++){
+    ctx.beginPath(); ctx.arc(W/2-20+i*20,20,3.5,0,Math.PI*2);
+    ctx.fillStyle=i===roomIdx?'rgba(46,191,165,0.7)':'rgba(46,191,165,0.2)'; ctx.fill();
+  }
+
+  // ── Gimmick pill (Quantum Split) ────────────────────────────────
+  if(player.gimmick==='split'){
+    ctx.fillStyle='rgba(13,8,30,0.8)';
+    roundRect(ctx,18,36,218,34,8); ctx.fill();
+    ctx.strokeStyle='rgba(139,92,246,0.55)'; ctx.lineWidth=1;
+    roundRect(ctx,18,36,218,34,8); ctx.stroke();
+    ctx.font=`11px ${MONO}`; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(167,139,250,0.9)'; ctx.fillText('QUANTUM SPLIT',50,53);
+    ctx.fillStyle='rgba(100,80,180,0.6)';  ctx.fillText('[E] 収束',152,53);
+    ctx.save(); ctx.globalAlpha=.75;
+    ctx.fillStyle='rgba(110,60,190,0.85)';
+    ctx.beginPath(); ctx.arc(32,53,8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(14,14,24,0.9)';
+    ctx.beginPath(); ctx.arc(36,53,8,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(139,92,246,0.7)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(32,53,8,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Gimmick pill (The Stare) ────────────────────────────────────
+  if(player.gimmick==='stare'){
+    ctx.fillStyle='rgba(5,18,30,0.85)';
+    roundRect(ctx,18,36,218,34,8); ctx.fill();
+    ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=10;
+    ctx.strokeStyle='rgba(125,216,248,0.65)'; ctx.lineWidth=1;
+    roundRect(ctx,18,36,218,34,8); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.font=`11px ${MONO}`; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(160,235,255,0.95)'; ctx.fillText('THE  STARE',50,53);
+    ctx.fillStyle='rgba(80,150,180,0.6)';   ctx.fillText('[Q] ホールド',138,53);
+    // Eye icon
+    ctx.save(); ctx.globalAlpha=.8+.15*Math.sin(t*5);
+    ctx.strokeStyle=PAL.stareGl; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(34,53,10,7,0,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle=PAL.stareGl;
+    ctx.beginPath(); ctx.arc(34,53,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(5,10,20,0.9)';
+    ctx.beginPath(); ctx.arc(34,53,2,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Wall jump stock indicator ────────────────────────────────────
+  if(!player.onGround){
+    const wjLeft=player.wallJumpsLeft;
+    ctx.save(); ctx.globalAlpha=0.7;
+    ctx.font=`10px ${MONO}`; ctx.textBaseline='top'; ctx.fillStyle='rgba(90,122,150,0.6)';
+    ctx.fillText('壁ジャンプ',W-110,38);
+    ctx.fillStyle=wjLeft>0?'rgba(46,191,165,0.8)':'rgba(60,60,80,0.6)';
+    ctx.beginPath(); ctx.arc(W-34,44,6,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // ── Switch status (Room 1) ───────────────────────────────────────
+  if(roomIdx===0){
+    const e=game.roomEntities, sw=e.switches, door=e.doors[0];
+    if(sw.length>0&&door&&!door.open){
+      ctx.font=`11px ${MONO}`; ctx.textBaseline='middle';
+      const bx=W-160, by=20;
+      ctx.fillStyle='rgba(13,8,30,0.75)';
+      roundRect(ctx,bx,by-10,140,30,6); ctx.fill();
+      ctx.strokeStyle='rgba(80,50,160,0.4)'; ctx.lineWidth=1;
+      roundRect(ctx,bx,by-10,140,30,6); ctx.stroke();
+      sw.forEach((s,i)=>{
+        ctx.fillStyle=s.pressed?PAL.accentG:'rgba(80,60,130,0.8)';
+        ctx.fillText(`[${s.id}]`,bx+10+i*70,by+1);
+      });
+    }
+  }
+
+  // ── Stare meter (Room 2, target active) ─────────────────────────
+  if(roomIdx===1){
+    const tgts=game.roomEntities.stareTargets??[];
+    const active=tgts.find(tg=>!tg.revealed&&tg.gazeTimer>0);
+    if(active){
+      const fill=active.gazeTimer/STARE_GAZE_TIME;
+      const bx=W/2-60, by=H-42;
+      ctx.font=`10px ${MONO}`; ctx.textBaseline='middle'; ctx.fillStyle='rgba(80,180,220,0.6)';
+      ctx.fillText('GAZE',bx-42,by);
+      ctx.fillStyle='rgba(10,20,35,0.8)'; ctx.fillRect(bx,by-8,120,16);
+      ctx.strokeStyle='rgba(125,216,248,0.4)'; ctx.lineWidth=1; ctx.strokeRect(bx,by-8,120,16);
+      ctx.shadowColor=PAL.stareGl; ctx.shadowBlur=8;
+      ctx.fillStyle=PAL.stareGl; ctx.fillRect(bx+1,by-7,118*fill,14);
+      ctx.shadowBlur=0;
+    }
+  }
+
+  // ── Gimmick pill (crouch) ───────────────────────────────────────
+  if(player.crouching){
+    ctx.fillStyle='rgba(5,18,30,0.8)';
+    roundRect(ctx,18,76,180,28,7); ctx.fill();
+    ctx.strokeStyle='rgba(80,160,120,0.45)'; ctx.lineWidth=1;
+    roundRect(ctx,18,76,180,28,7); ctx.stroke();
+    ctx.font=`11px ${MONO}`; ctx.textBaseline='middle';
+    ctx.fillStyle='rgba(90,210,160,0.9)'; ctx.fillText('CROUCH  [↓]',50,90);
+    ctx.fillStyle='rgba(50,130,90,0.6)'; ctx.fillText('×0.5 SPD',138,90);
+    ctx.save(); ctx.globalAlpha=.7;
+    ctx.fillStyle='rgba(14,14,24,0.9)';
+    ctx.beginPath(); ctx.ellipse(34,90,8,5,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(90,210,160,0.65)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(34,90,8,5,0,0,Math.PI*2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── Stare aspect/angle mini-HUD (during stare) ──────────────────
+  if(player.staring){
+    const {half,range}=stareParams(player.stareAspect);
+    const halfDeg=Math.round(half*180/Math.PI);
+    const rangePx=Math.round(range);
+    const angDeg=Math.round(player.stareAngleOffset*180/Math.PI);
+    ctx.font=`10px ${MONO}`; ctx.textBaseline='top';
+    ctx.fillStyle='rgba(80,180,210,0.55)';
+    ctx.fillText(`角度 ${angDeg>0?'+':''}${angDeg}°  幅 ±${halfDeg}°  射程 ${rangePx}px`,W/2-110,H-58);
+    ctx.fillStyle='rgba(60,130,160,0.4)';
+    ctx.fillText('[↑↓] 向き  [←→] 幅/射程',W/2-85,H-44);
+  }
+
+  // ── Bottom hint ──────────────────────────────────────────────────
+  if(roomIdx===0&&game.time<14&&!player.hasUsedSplit){
+    const a=Math.min(1,(14-game.time)*.2)*.55;
+    ctx.font=`12px ${MONO}`; ctx.textBaseline='bottom';
+    ctx.fillStyle=`rgba(90,122,150,${a})`;
+    ctx.fillText('[←→] 移動  [Space] ジャンプ  [E] Quantum Split',W/2-210,H-18);
+  }
+  if(roomIdx===1&&game.time<14&&!player.hasUsedStare){
+    const a=Math.min(1,(14-game.time)*.2)*.55;
+    ctx.font=`12px ${MONO}`; ctx.textBaseline='bottom';
+    ctx.fillStyle=`rgba(90,180,210,${a})`;
+    ctx.fillText('[Q ホールド] The Stare  ─  地上で壁パネルを凝視する',W/2-210,H-18);
+  }
+}
+
+// ── Tutorial cards ────────────────────────────────────────────────────
+function drawTutorialCard(player,t){
+  // Room 1: Quantum Split
+  if(game.roomIdx===0&&!player.hasUsedSplit&&game.time>1.5){
+    const age=game.time-1.5;
+    let a=Math.min(1,age*.8); if(age>9) a=Math.max(0,a-(age-9)*.5);
+    if(a<=0) return;
+    ctx.save(); ctx.globalAlpha=a;
+    _drawCard(ctx,290,155,395,175,'rgba(139,92,246,0.65)','rgba(139,92,246,0.18)','QUANTUM SPLIT  解禁',
+      ['[E] で発動 / 収束','分身は逆方向に移動する','← を押し続けて左壁まで歩け','分身がドアをすり抜けてAを踏む'],t,'rgba(100,80,180,0.5)','rgba(167,139,250,1)');
+    ctx.restore();
+  }
+  // Room 2: Split puzzle (primary) + Stare bonus hint
+  if(game.roomIdx===1&&game.time>1.5){
+    const age=game.time-1.5;
+    // Show split card until used
+    if(!player.hasUsedSplit){
+      let a=Math.min(1,age*.8); if(age>10) a=Math.max(0,a-(age-10)*.5);
+      if(a>0){
+        ctx.save(); ctx.globalAlpha=a;
+        _drawCard(ctx,290,155,395,170,'rgba(139,92,246,0.65)','rgba(139,92,246,0.18)','QUANTUM SPLIT',
+          ['[E] スプリット → [→] を押し続ける','分身が左壁へ → 自分が扉に当たる','2体同時でA+Bを押す → 扉が開く'],t,'rgba(100,80,180,0.5)','rgba(167,139,250,1)');
+        ctx.restore();
+      }
+    }
+    // Show stare hint once door is opened
+    const doorOpen=game.roomEntities.doors[0]?.openProgress>=1;
+    if(doorOpen&&!player.hasUsedStare){
+      const stareAge=game.time-(game.roomEntities.doors[0]._openedAt||game.time);
+      let a=Math.min(1,(age-0.5)*.8);
+      if(a>0){
+        ctx.save(); ctx.globalAlpha=a;
+        _drawCard(ctx,290,145,415,170,'rgba(125,216,248,0.55)','rgba(80,180,220,0.12)','THE STARE  ボーナス',
+          ['階段を上って観測デッキへ','[Q] ホールドで発動（地上・ゴーストなし）','[↑↓][←→] コーンを調整して塔を凝視'],t,'rgba(60,120,160,0.5)','rgba(160,235,255,1)');
+        ctx.restore();
+      }
+    }
+  }
+  // Room 3: Hint
+  if(game.roomIdx===2&&!player.hasUsedSplit&&game.time>1.5){
+    const age=game.time-1.5;
+    let a=Math.min(1,age*.8); if(age>8) a=Math.max(0,a-(age-8)*.5);
+    if(a>0){
+      ctx.save(); ctx.globalAlpha=a;
+      _drawCard(ctx,290,155,410,170,'rgba(139,92,246,0.65)','rgba(139,92,246,0.18)','STAGE 3',
+        ['[E] スプリット後 [←] ホールド','自分が左の段に跳び乗りAを踏む','分身が右の扉を抜けてBを踏む → 扉開放'],t,'rgba(100,80,180,0.5)','rgba(167,139,250,1)');
+      ctx.restore();
+    }
+  }
+}
+function _drawCard(c,cx,cy,cw,ch,borderCol,headerCol,title,lines,t,blinkCol,titleCol){
+  c.fillStyle='rgba(10,8,24,0.93)';
+  roundRect(c,cx,cy,cw,ch,10); c.fill();
+  c.strokeStyle=borderCol; c.lineWidth=1.5;
+  roundRect(c,cx,cy,cw,ch,10); c.stroke();
+  c.fillStyle=headerCol; c.fillRect(cx+1,cy+1,cw-2,30);
+  c.font=`bold 13px ${MONO}`; c.textBaseline='top';
+  c.fillStyle=titleCol; c.fillText(title,cx+16,cy+9);
+  c.font=`12px ${MONO}`;
+  lines.forEach((l,i)=>{
+    c.fillStyle=i===0?'rgba(212,227,238,0.9)':'rgba(160,185,205,0.75)';
+    c.fillText(`► ${l}`,cx+20,cy+48+i*26);
+  });
+  if(Math.sin(t*3)>.3){ c.fillStyle=blinkCol; c.fillText('[ ホールドして試してみよう ]',cx+80,cy+ch-22); }
+}
+
+// ── Fade ──────────────────────────────────────────────────────────────
+let fadeAlpha=0, fadingOut=false, fadingIn=false, fadeCallback=null;
+function startFade(cb){ fadingOut=true; fadeAlpha=0; fadeCallback=cb; }
+function updateFade(dt){
+  if(fadingOut){
+    fadeAlpha=Math.min(1,fadeAlpha+dt*3.5);
+    if(fadeAlpha>=1){ fadingOut=false; fadingIn=true; fadeCallback?.(); fadeCallback=null; }
+  }
+  if(fadingIn){
+    fadeAlpha=Math.max(0,fadeAlpha-dt*3);
+    if(fadeAlpha<=0) fadingIn=false;
+  }
+}
+function renderFade(){
+  if(fadingOut||fadingIn||fadeAlpha>0){
+    ctx.fillStyle=`rgba(0,0,0,${fadeAlpha})`; ctx.fillRect(0,0,W,H);
+  }
+}
+
+// ── Goal popup ────────────────────────────────────────────────────────
+let goalPop=false, goalTimer=0;
+function showGoal(){ goalPop=true; goalTimer=0; }
+function updateGoal(dt){ if(goalPop) goalTimer+=dt; }
+function drawGoal(){
+  if(!goalPop) return;
+  const a=Math.min(1,goalTimer*2);
+  const pulse=0.5+0.5*Math.sin(goalTimer*3.5);
+  ctx.save(); ctx.globalAlpha=a;
+  ctx.font=`bold 96px ${MONO}`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle=`rgba(46,191,165,${0.9+0.1*pulse})`;
+  ctx.shadowColor=PAL.accentG; ctx.shadowBlur=40+20*pulse;
+  ctx.fillText('CLEAR',W/2,H/2);
+  ctx.shadowBlur=0; ctx.textAlign='left'; ctx.restore();
+}
+
+// ── Game state ────────────────────────────────────────────────────────
+const game = {
+  state:'title', roomIdx:0, time:0,
+  player:null,
+  roomEntities:{switches:[],doors:[],sealedCats:[],stareTargets:[]},
+
+  start(){
+    this.roomIdx=0;
+    this.player=new Player(6*TILE, 14*TILE);
+    this.roomEntities=buildRoomEntities(0);
+    goalPop=false; goalTimer=0; fadeAlpha=0; fadingOut=false; fadingIn=false;
+    shakeTimer=0; shakeAmp=0; this.time=0; this.state='playing';
+    document.getElementById('title').classList.add('gone'); hidePause();
+  },
+
+  triggerGoal(){ if(goalPop) return; showGoal(); this.state='transitioning'; },
+
+  toRoom(next,fromSide){
+    if(this.state==='transitioning') return;
+    this.state='transitioning';
+    startFade(()=>{
+      this.roomIdx=next;
+      this.player.x=fromSide==='left'?55:W-PW-55;
+      this.player.y=14*TILE; this.player.vx=0; this.player.vy=0;
+      this.player.onGround=false; this.player.ghost=null; this.player.gimmick=null;
+      this.player.wallJumpsLeft=1;
+      this.player.crouching=false; this.player.crouchH=PH; this.player.crouchSY=1.0;
+      this.player.stareAngleOffset=0; this.player.stareAspect=1.0;
+      this.roomEntities=buildRoomEntities(next);
+    });
+    setTimeout(()=>{ this.state='playing'; },600);
+  },
+
+  pause(){
+    if(this.state!=='playing') return;
+    this.state='paused'; document.getElementById('pause').classList.add('show');
+  },
+  resume(){ this.state='playing'; hidePause(); },
+  backToTitle(){
+    hidePause();
+    startFade(()=>{ this.state='title'; document.getElementById('title').classList.remove('gone'); });
+  },
+
+  update(dt){
+    tickShake(dt); updateFade(dt); updateGoal(dt);
+    if(this.state==='playing'){
+      this.time+=dt;
+      const p=this.player, map=MAPS[this.roomIdx];
+      const {switches,doors,sealedCats,stareTargets}=this.roomEntities;
+
+      p.update(dt,map,this.roomEntities);
+      updateSwitches(switches,p,p.ghost);
+      updateDoors(doors,switches,dt);
+      checkCeilRescue(sealedCats,p,this.roomIdx);
+      for(const sc of sealedCats) if(sc.foundTimer>0) sc.foundTimer=Math.max(0,sc.foundTimer-dt);
+
+      if(p.x+PW>W&&this.roomIdx<2)  this.toRoom(this.roomIdx+1,'left');
+      else if(p.x<-4&&this.roomIdx>0) this.toRoom(this.roomIdx-1,'right');
+      if(Input.pressed('Escape')) this.pause();
+    } else if(this.state==='paused'){
+      if(Input.pressed('Escape')) this.resume();
+    }
+  },
+
+  render(t){
+    drawBG(t,this.roomIdx);
+    ctx.clearRect(0,0,W,H);
+    if(this.state!=='title'){
+      ctx.save(); ctx.translate(_shakeX,_shakeY);
+      drawTiles(MAPS[this.roomIdx]);
+      if(this.roomIdx>0) drawDoorArch('left',t);
+      if(this.roomIdx<2) drawDoorArch('right',t);
+
+      const {switches,doors,sealedCats,stareTargets}=this.roomEntities;
+      drawSwitchConnections(switches,doors,t);
+      for(const d of doors)       drawDoor(d,t);
+      for(const s of switches)    drawSwitch(s,t);
+      for(const tg of stareTargets) drawStareTarget(tg,t);
+      drawGazeCone(this.player,t,MAPS[this.roomIdx]);
+      for(const sc of sealedCats) drawSealedCat(sc,t);
+
+      if(this.player) this.player.draw(ctx,t);
+      ctx.restore();
+
+      drawHUD(this.roomIdx,this.player,t);
+      drawTutorialCard(this.player,t);
+      renderFade(); drawGoal();
+    }
+  },
+};
+
+// ── Title / Pause UI ──────────────────────────────────────────────────
+(()=>{
+  const el=document.getElementById('title');
+  const items=[...el.querySelectorAll('.mi')]; let sel=0;
+  const upd=()=>items.forEach((e,i)=>e.classList.toggle('sel',i===sel));
+  const act=()=>{
+    const a=items[sel].dataset.a;
+    if(a==='start') game.start();
+    else if(a==='controls') document.getElementById('ctrl-overlay').classList.add('show');
+  };
+  items.forEach((e,i)=>{
+    e.addEventListener('click',()=>{sel=i;act();});
+    e.addEventListener('mouseenter',()=>{sel=i;upd();});
+  });
+  document.getElementById('ctrl-back').addEventListener('click',()=>
+    document.getElementById('ctrl-overlay').classList.remove('show'));
+  window.addEventListener('keydown',e=>{
+    if(game.state!=='title') return;
+    if(e.code==='ArrowDown'||e.code==='KeyS'){sel=(sel+1)%items.length;upd();}
+    if(e.code==='ArrowUp'  ||e.code==='KeyW'){sel=(sel-1+items.length)%items.length;upd();}
+    if(e.code==='Enter'||e.code==='Space') act();
+  });
+})();
+
+function hidePause(){ document.getElementById('pause').classList.remove('show'); }
+(()=>{
+  const items=[...document.getElementById('pause').querySelectorAll('.mi')]; let sel=0;
+  const upd=()=>items.forEach((e,i)=>e.classList.toggle('sel',i===sel));
+  const act=()=>{ const a=items[sel].dataset.p;
+    if(a==='resume') game.resume(); else if(a==='title') game.backToTitle(); };
+  items.forEach((e,i)=>{
+    e.addEventListener('click',()=>{sel=i;act();});
+    e.addEventListener('mouseenter',()=>{sel=i;upd();});
+  });
+  window.addEventListener('keydown',e=>{
+    if(game.state!=='paused') return;
+    if(e.code==='ArrowDown'||e.code==='KeyS'){sel=(sel+1)%items.length;upd();}
+    if(e.code==='ArrowUp'  ||e.code==='KeyW'){sel=(sel-1+items.length)%items.length;upd();}
+    if(e.code==='Enter') act();
+  });
+})();
+
+// ── Title background ──────────────────────────────────────────────────
+function renderTitleBG(t){
+  bgCtx.fillStyle=bgGrad; bgCtx.fillRect(0,0,W,H);
+  bgCtx.strokeStyle='rgba(40,90,130,0.06)'; bgCtx.lineWidth=1;
+  for(let x=0;x<W;x+=64){bgCtx.beginPath();bgCtx.moveTo(x,0);bgCtx.lineTo(x,H);bgCtx.stroke();}
+  for(let y=0;y<H;y+=64){bgCtx.beginPath();bgCtx.moveTo(0,y);bgCtx.lineTo(W,y);bgCtx.stroke();}
+  for(const p of PARTS){
+    const a=p.a*(0.4+0.4*Math.sin(t*1.6+p.ph));
+    bgCtx.fillStyle=`rgba(46,191,165,${a})`;
+    bgCtx.beginPath(); bgCtx.arc(p.x,p.y,p.r,0,Math.PI*2); bgCtx.fill();
+  }
+  drawKotoSil(bgCtx,W-120,H-130,t);
+  const vig=bgCtx.createRadialGradient(W/2,H/2,H*.2,W/2,H/2,H*.9);
+  vig.addColorStop(0,'transparent'); vig.addColorStop(1,'rgba(0,3,10,0.7)');
+  bgCtx.fillStyle=vig; bgCtx.fillRect(0,0,W,H);
+}
+function drawKotoSil(c,x,y,t){
+  const tail=Math.sin(t*1.8)*8;
+  c.strokeStyle='rgba(30,58,95,0.8)'; c.lineWidth=6; c.lineCap='round';
+  c.beginPath(); c.moveTo(x-20,y+20); c.quadraticCurveTo(x-50+tail,y,x-45+tail*.6,y-20); c.stroke();
+  c.fillStyle='rgba(18,35,55,0.85)';
+  c.beginPath(); c.ellipse(x,y+10,28,32,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(x+6,y-20,24,22,.15,0,Math.PI*2); c.fill();
+  c.beginPath(); c.moveTo(x-5,y-35);c.lineTo(x-14,y-48);c.lineTo(x+2,y-40); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(x+12,y-35);c.lineTo(x+22,y-48);c.lineTo(x+16,y-38); c.closePath(); c.fill();
+  const gl=c.createRadialGradient(x+2,y-20,0,x+2,y-20,8);
+  gl.addColorStop(0,'rgba(46,191,165,0.3)'); gl.addColorStop(1,'transparent');
+  c.fillStyle=gl; c.beginPath(); c.arc(x+2,y-20,8,0,Math.PI*2); c.fill();
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────
+let lastTime=0;
+function loop(ts){
+  const dt=Math.min((ts-lastTime)/1000,.05); lastTime=ts; const t=ts/1000;
+  updateParts(dt);
+  if(game.state==='title'){ renderTitleBG(t); ctx.clearRect(0,0,W,H); }
+  else { game.update(dt); game.render(t); }
+  Input.flush(); requestAnimationFrame(loop);
+}
+
+// ── Viewport scaling ──────────────────────────────────────────────────
+function resize(){
+  document.getElementById('wrap').style.transform=
+    `scale(${Math.min(window.innerWidth/W,window.innerHeight/H)})`;
+}
+window.addEventListener('resize',resize); resize();
+requestAnimationFrame(ts=>{ lastTime=ts; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>
