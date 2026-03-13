@@ -94,12 +94,13 @@ canvas{position:absolute;top:0;left:0}
 .arc-card.found-key {border-color:rgba(46,191,165,0.55);box-shadow:0 0 24px rgba(46,191,165,0.08)}
 .arc-card.found-ceil{border-color:rgba(125,216,248,0.55);box-shadow:0 0 24px rgba(125,216,248,0.08)}
 .arc-card.found-void{border-color:rgba(139,92,246,0.55);box-shadow:0 0 24px rgba(139,92,246,0.08)}
+.arc-card.found-echo{border-color:rgba(220,180,60,0.55);box-shadow:0 0 24px rgba(220,180,60,0.08)}
 .arc-card-header{width:100%;padding:9px 15px 7px;font-size:9px;letter-spacing:.22em;
   color:#2A3A50;border-bottom:1px solid rgba(50,90,130,0.18);text-align:left}
 .arc-card.found-key  .arc-card-header{color:rgba(46,191,165,0.65)}
 .arc-card.found-ceil .arc-card-header{color:rgba(125,216,248,0.65)}
 .arc-card.found-void .arc-card-header{color:rgba(139,92,246,0.65)}
-.arc-card canvas{margin:14px 0 8px;display:block}
+.arc-card.found-echo .arc-card-header{color:rgba(220,180,60,0.65)}
 .arc-card-name{font-size:20px;letter-spacing:.24em;color:#D4E3EE;margin:2px 0 12px}
 .arc-card.unfound .arc-card-name{color:#1E2E3E}
 .arc-row{width:100%;padding:4px 16px;display:flex;justify-content:space-between;
@@ -112,6 +113,7 @@ canvas{position:absolute;top:0;left:0}
 .arc-card.found-key  .arc-flavor{color:rgba(46,191,165,0.38)}
 .arc-card.found-ceil .arc-flavor{color:rgba(125,216,248,0.38)}
 .arc-card.found-void .arc-flavor{color:rgba(139,92,246,0.38)}
+.arc-card.found-echo .arc-flavor{color:rgba(220,180,60,0.38)}
 #archive-back{margin-top:22px;color:#2A4060;cursor:pointer;letter-spacing:.12em;font-size:13px}
 #archive-back:hover{color:#D4E3EE}
 
@@ -132,7 +134,7 @@ canvas{position:absolute;top:0;left:0}
     <div id="logo">NEKO PARADOX</div>
     <div id="logo-sub">The Internet's Forgotten Cats</div>
     <div class="mi sel" data-a="start">ゲームスタート</div>
-    <div class="mi"     data-a="archive">MEME  ARCHIVE</div>
+    <div class="mi"     data-a="archive">NEKO  ARCHIVE</div>
     <div class="mi"     data-a="controls">操作方法</div>
     <div id="hint">PRESS  ENTER  TO  START</div>
   </div>
@@ -161,7 +163,7 @@ canvas{position:absolute;top:0;left:0}
   </div>
 
   <div id="archive">
-    <h2>MEME  ARCHIVE</h2>
+    <h2>NEKO  ARCHIVE</h2>
     <div id="archive-count"></div>
     <div id="archive-cards"></div>
     <div id="archive-back">&lt; 戻る</div>
@@ -219,11 +221,12 @@ const PAL = {
 };
 const MONO = '"Share Tech Mono","Courier New",monospace';
 
-// ── MEME ARCHIVE データ ───────────────────────────────────────────────
+// ── NEKO ARCHIVE データ ───────────────────────────────────────────────
 const MEME_CATS = [
   { id:'key',  name:'Key',  room:'ROOM 1  廃棄データセンター', gimmick:'Quantum Split', found:false },
   { id:'ceil', name:'Ceil', room:'ROOM 2  観測者の廊下',       gimmick:'The Stare',     found:false },
   { id:'void', name:'Void', room:'ROOM 3  収束の間',           gimmick:'The Stare',     found:false },
+  { id:'echo', name:'Echo', room:'ROOM 4  二重鍵の間',         gimmick:'The Stare',     found:false },
 ];
 
 const ARCHIVE_KEY='neko_paradox_archive';
@@ -489,6 +492,12 @@ function buildRoomEntities(roomIdx){
       8*TILE, 17*TILE, 4*TILE, 24*TILE,
       {speed:52, fovAngle:Math.PI*0.45, fovRange:210}
     ));
+    // シークレットキャット Echo: GOALチャンバー右上（col37,row7）
+    // 上段足場(row10,col30-38)から右端付近へジャンプ＋上方 stare で到達可
+    sealedCats.push({
+      id:'echo', x:37*TILE, y:7*TILE, found:false, hidden:true,
+      gazeTimer:0, isGazeTarget:true, _gazeW:40, _gazeH:64,
+    });
   }
 
   return {switches,doors,sealedCats,observers};
@@ -850,7 +859,7 @@ function drawKotoShape(c,x,y,facing,landSquish,tailPhase,bob,mode,crouchBlend=0,
     c.translate(-_neckPivotX, -_neckPivotY);
 
     // ── Ears: ひし形（ボディ/頭より先に描画 → 頭の後ろに沈む）──
-    const earTiltPx=earTilt*10;
+    const earTiltPx=0;
     c.fillStyle='#1E1A2E';
     // 左耳ひし形
     c.beginPath();
@@ -1591,29 +1600,10 @@ class Player {
     const feetY=this.y+this.crouchH;
     const drawY=feetY-PH;
 
-    // ── ガイドシステム: 耳傾き・瞳プリグロー計算 ──────────────────
-    let earTilt=0, eyePreGlow=0;
-    const headX=this.x+PW/2, headY=this.y+PH*0.25;
-    for(const sc of sealedCats){
-      if(!sc.isGazeTarget||sc.found||!sc.hidden) continue;
-      const catCx=sc.x+(sc._gazeW??40)*0.5;
-      const catCy=sc.y+(sc._gazeH??64)*0.5;
-      const dx=catCx-headX, dy=catCy-headY;
-      const dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<200 && this.staring){
-        // 耳傾き: facing 方向で正規化。左に対象 → facing*dx が負
-        earTilt=this.facing*Math.max(-1,Math.min(1,dx/150));
-      }
-      if(dist<100){
-        eyePreGlow=Math.max(eyePreGlow, 1-dist/100);
-      }
-    }
     const inConfirmDraw=this.staring && Math.abs(this.vx)<1;
-    // Confirm中は stare モード（強グロー）。それ以外は normal
     const mode=inConfirmDraw?'stare':'normal';
-    // Stare中: stareAngleOffset を首傾きに変換（上向き=負→顔が前傾き、下向き=正→後傾き）
     const neckTilt=this.staring ? this.stareAngleOffset : 0;
-    const guideOpts={earTilt,eyePreGlow,neckTilt};
+    const guideOpts={neckTilt};
 
     // ── Split中: 本体トレイル描画（暖色） ───────────────────────
     if(this.ghost){
@@ -1913,80 +1903,11 @@ function drawGazeCone(player,t,map){
   ctx.restore();
 }
 
-// ── MEME ARCHIVE レンダリング ─────────────────────────────────────────
-let _arcCanvases=[];  // [{canvas, id}]
-
-function drawArchiveCat(c,id,found,t){
-  const CW=200,CH=142;
-  c.clearRect(0,0,CW,CH);
-  if(!found){
-    // 未発見: 暗いシルエット
-    c.fillStyle='rgba(14,22,36,0.75)'; c.fillRect(0,0,CW,CH);
-    c.fillStyle='rgba(24,36,55,0.95)';
-    c.beginPath(); c.ellipse(96,89,31,41,0,0,Math.PI*2); c.fill();
-    c.beginPath(); c.ellipse(104,52,27,25,.12,0,Math.PI*2); c.fill();
-    c.beginPath(); c.moveTo(88,37); c.lineTo(76,19); c.lineTo(100,31); c.closePath(); c.fill();
-    c.beginPath(); c.moveTo(116,37); c.lineTo(130,19); c.lineTo(116,31); c.closePath(); c.fill();
-    c.fillStyle='rgba(35,52,72,0.90)';
-    c.font=`bold 17px ${MONO}`; c.textAlign='center'; c.textBaseline='middle';
-    c.fillText('? ? ?',100,71);
-    return;
-  }
-  const col=id==='key'?'#2EBFA5':id==='ceil'?'#7DD8F8':'#8B5CF6';
-  const bob=Math.sin(t*2.2)*1.8;
-  const tailPhase=t*2.4;
-  // BG radial glow
-  const bg=c.createRadialGradient(100,82,5,100,82,88);
-  bg.addColorStop(0,id==='key'?'rgba(46,191,165,0.11)':id==='ceil'?'rgba(125,216,248,0.11)':'rgba(139,92,246,0.11)');
-  bg.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=bg; c.fillRect(0,0,CW,CH);
-  // Tail
-  const tw=Math.sin(tailPhase)*8, th=Math.cos(tailPhase*.7)*6;
-  c.strokeStyle='#0E0E18'; c.lineWidth=5; c.lineCap='round';
-  c.beginPath();
-  c.moveTo(67,98+bob);
-  c.quadraticCurveTo(49+tw,77+th,54+tw*.7,61+th*.5); c.stroke();
-  // Body + head with glow
-  c.shadowColor=col; c.shadowBlur=18;
-  c.fillStyle='#0E0E18';
-  c.beginPath(); c.ellipse(96,88+bob,31,41,0,0,Math.PI*2); c.fill();
-  c.beginPath(); c.ellipse(104,52+bob,27,25,.12,0,Math.PI*2); c.fill();
-  // Ears
-  c.beginPath(); c.moveTo(88,37+bob); c.lineTo(76,19+bob); c.lineTo(100,31+bob); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(116,37+bob); c.lineTo(130,19+bob); c.lineTo(116,31+bob); c.closePath(); c.fill();
-  c.shadowBlur=0;
-  // Inner ear
-  c.fillStyle='rgba(100,50,60,0.5)';
-  c.beginPath(); c.moveTo(89,37+bob); c.lineTo(79,22+bob); c.lineTo(99,32+bob); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(115,37+bob); c.lineTo(127,22+bob); c.lineTo(115,32+bob); c.closePath(); c.fill();
-  // Eyes
-  const ey=50+bob;
-  const lC=id==='key'?'#E8C040':id==='ceil'?'#9FECFF':'#C0A8FF';
-  const rC=id==='key'?'#A8C0D8':id==='ceil'?'#9FECFF':'#C0A8FF';
-  c.shadowColor=col; c.shadowBlur=10;
-  c.fillStyle=lC; c.beginPath(); c.ellipse(97,ey,4.5,3.8,0,0,Math.PI*2); c.fill();
-  c.fillStyle=rC; c.beginPath(); c.ellipse(111,ey,4.5,3.8,0,0,Math.PI*2); c.fill();
-  c.shadowBlur=0;
-  c.fillStyle='#0A0812';
-  c.beginPath(); c.ellipse(97,ey,1.8,2.8,0,0,Math.PI*2); c.fill();
-  c.beginPath(); c.ellipse(111,ey,1.8,2.8,0,0,Math.PI*2); c.fill();
-  c.fillStyle='rgba(255,255,255,0.9)';
-  c.beginPath(); c.arc(98.3,ey-1.2,1.1,0,Math.PI*2); c.fill();
-  c.beginPath(); c.arc(112.3,ey-1.2,1.1,0,Math.PI*2); c.fill();
-  // Nose
-  c.fillStyle='rgba(180,100,110,0.7)';
-  c.beginPath(); c.ellipse(104,ey+4,2.2,1.6,0,0,Math.PI*2); c.fill();
-  // Outline glow pulse
-  c.shadowColor=col; c.shadowBlur=8;
-  c.strokeStyle=col; c.lineWidth=1.2;
-  c.globalAlpha=0.30+0.14*Math.sin(t*2.5);
-  c.beginPath(); c.ellipse(96,88+bob,31,41,0,0,Math.PI*2); c.stroke();
-  c.globalAlpha=1; c.shadowBlur=0;
-}
+// ── NEKO ARCHIVE レンダリング ─────────────────────────────────────────
 
 function buildArchiveCards(){
   const container=document.getElementById('archive-cards');
-  container.innerHTML=''; _arcCanvases=[];
+  container.innerHTML='';
   const foundCount=MEME_CATS.filter(c=>c.found).length;
   document.getElementById('archive-count').textContent=
     `RESCUED  ${foundCount} / ${MEME_CATS.length}`;
@@ -2000,12 +1921,6 @@ function buildArchiveCards(){
     hdr.className='arc-card-header';
     hdr.textContent=cat.found?`MC-${String(idx+1).padStart(2,'0')}  //  ${cat.id.toUpperCase()}`:'// SEALED //';
     card.appendChild(hdr);
-
-    // ネコイラスト用 canvas
-    const cvs=document.createElement('canvas');
-    cvs.width=200; cvs.height=142;
-    card.appendChild(cvs);
-    _arcCanvases.push({canvas:cvs,id:cat.id,found:cat.found});
 
     // 名前
     const nm=document.createElement('div');
@@ -2036,6 +1951,7 @@ function buildArchiveCards(){
         key: 'データセンターの廃棄ログに\n閉じ込められていた。\n最初に消去されたネコ。',
         ceil:'観測される前、自分が\n存在するか分からなかった。\n見られてはじめて、ここにいた。',
         void:'Split の収束点の外側。\nどの座標にも属さないまま\nずっと待っていた。',
+        echo:'最終フロアの上空で\n信号を発し続けていた。\n誰かが気づくまで、ずっと。',
       };
       fl.textContent=flv[cat.id]??'---';
       card.appendChild(fl);
@@ -2043,12 +1959,6 @@ function buildArchiveCards(){
 
     container.appendChild(card);
   });
-}
-
-function renderArchiveAnim(t){
-  for(const {canvas,id,found} of _arcCanvases){
-    drawArchiveCat(canvas.getContext('2d'),id,found,t);
-  }
 }
 
 // ── Glitch hint: 隠しガゼキャット近傍でデジタルノイズを発生させる ─────
@@ -2499,7 +2409,17 @@ function drawGoal(){
   ctx.fillStyle=`rgba(46,191,165,${0.9+0.1*pulse})`;
   ctx.shadowColor=PAL.accentG; ctx.shadowBlur=40+20*pulse;
   ctx.fillText('CLEAR',W/2,H/2);
-  ctx.shadowBlur=0; ctx.textAlign='left'; ctx.restore();
+  ctx.shadowBlur=0;
+  // サブテキスト（1.5秒後にフェードイン）
+  if(goalTimer>1.5){
+    const sa=Math.min(1,(goalTimer-1.5)*1.5);
+    const blink=Math.sin(goalTimer*4)>0?1:0.4;
+    ctx.globalAlpha=sa*blink;
+    ctx.font=`14px ${MONO}`; ctx.letterSpacing='.18em';
+    ctx.fillStyle='#5A7A96';
+    ctx.fillText('SPACE  /  ENTER  →  TITLE',W/2,H/2+72);
+  }
+  ctx.textAlign='left'; ctx.restore();
 }
 
 // ── Game state ────────────────────────────────────────────────────────
@@ -2524,7 +2444,7 @@ const game = {
     document.getElementById('title').classList.add('gone'); hidePause();
   },
 
-  triggerGoal(){ if(goalPop) return; showGoal(); this.state='transitioning'; },
+  triggerGoal(){ if(goalPop) return; showGoal(); this.state='cleared'; },
 
   toRoom(next,fromSide){
     if(this.state==='transitioning') return;
@@ -2575,6 +2495,10 @@ const game = {
       if(p.x+PW>W&&this.roomIdx<4)  this.toRoom(this.roomIdx+1,'left');
       else if(p.x<-4&&this.roomIdx>0) this.toRoom(this.roomIdx-1,'right');
       if(Input.pressed('Escape')) this.pause();
+    } else if(this.state==='cleared'){
+      if(goalTimer>1.5 && (Input.pressed('Space')||Input.pressed('Enter'))){
+        this.backToTitle();
+      }
     } else if(this.state==='paused'){
       if(Input.pressed('Escape')) this.resume();
     }
@@ -2734,7 +2658,6 @@ function loop(ts){
   if(game.state==='title'){ renderTitleBG(t); ctx.clearRect(0,0,W,H); }
   else { game.update(dt); game.render(t); }
   // アーカイブ画面が開いていれば毎フレームネコアニメを更新
-  if(document.getElementById('archive').classList.contains('show')) renderArchiveAnim(t);
   Input.flush(); requestAnimationFrame(loop);
 }
 
